@@ -1,31 +1,33 @@
-// !! ថ្មី !!: ទាញអថេរ និង Icons ពី Global Scope
-const {
-  calculateDuration,
-  // OVERTIME_LIMIT_MINUTES, // !! លុប !!: ឥឡូវទាញពី Prop វិញ
-  IconCheckOut, IconCheckIn, IconSearch, IconClock, IconCheckCircle,
-  IconTicket, IconClose, IconTrash, IconNoSymbol, IconAlert,
-  IconSpecial, IconDotsVertical, IconLock, IconQrCode, IconPencil,
-  IconInfo, IconCheckCircleFill, IconPencilSquare,
-  IconArrowLeft, IconArrowRight, // !! ថ្មី !!: ទាញ Icons ថ្មី
-  IconCameraRotate, // !! ថ្មី !!: បន្ថែម Icon ត្រឡប់កាមេរ៉ា
-  IconToggleLeft, IconToggleRight // !! ថ្មី !!: បន្ថែម Icons ថ្មី
-} = window.appSetup;
-
 // =================================================================
 // 4. MAIN UI COMPONENTS
 // =================================================================
 
+// ទាញអថេរ និង Icons ពី Global Scope
+const {
+  calculateDuration,
+  IconCheckOut, IconCheckIn, IconSearch, IconClock, IconCheckCircle,
+  IconTicket, IconClose, IconTrash, IconNoSymbol, IconAlert,
+  IconSpecial, IconDotsVertical, IconLock, IconQrCode, IconPencil,
+  IconInfo, IconCheckCircleFill, IconPencilSquare,
+  IconArrowLeft, IconArrowRight, 
+  IconCameraRotate, 
+  IconToggleLeft, IconToggleRight,
+  IconFaceId // !! ថ្មី !!: ទាញ IconFaceId
+} = window.appSetup;
+
+const { useState, useEffect, useRef } = React;
+
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
   handleCheckOut, 
-  handleCheckIn, // មុខងារ Check-in ស្វ័យប្រវត្តិ
-  handleOpenQrScanner, // មុខងារបើក Scanner
+  handleCheckIn, 
+  handleOpenQrScanner, 
   onDeleteClick, 
   totalPasses, 
   t, 
   checkInMode,
-  overtimeLimit, // !! ថ្មី !!
-  appBranch // !! ថ្មី !!
+  overtimeLimit, 
+  appBranch 
 }) => {
   
   const studentBreaks = attendance[student.id] || [];
@@ -44,8 +46,7 @@ window.StudentCard = ({
     const elapsedMins = calculateDuration(activeBreak.checkOutTime, now.toISOString());
     const isOvertime = elapsedMins > overtimeLimit;
     
-    // !! ថ្មី !!: បន្ថែម (A) ឬ (B) និងជួសជុល Bug 'undefined'
-    const branchDisplay = activeBreak.branch ? ` (${activeBreak.branch})` : ''; // !! កែសម្រួល !!: ប្រើ activeBreak.branch
+    const branchDisplay = activeBreak.branch ? ` (${activeBreak.branch})` : ''; 
     const passNumberDisplay = activeBreak.passNumber ? `${t.statusPass}: ${activeBreak.passNumber}` : '';
     statusText = `${t.statusOnBreak} (${passNumberDisplay}${branchDisplay}) (${elapsedMins} ${t.minutes})`; 
     
@@ -94,7 +95,6 @@ window.StudentCard = ({
     student.photoUrl ||
     `https://placehold.co/128x128/EBF4FF/76A9FA?text=${student.name ? student.name.charAt(0) : 'N'}`;
 
-  // !! ថ្មី !!: សម្រេចចិត្តថាតើប៊ូតុង "ចូលវិញ" ត្រូវធ្វើអ្វី
   const checkInAction = checkInMode === 'scan' 
     ? handleOpenQrScanner 
     : () => handleCheckIn(student.id);
@@ -123,7 +123,6 @@ window.StudentCard = ({
         }}
       />
       
-      {/* !! ថ្មី !!: បន្ថែម pt-16 (Padding Top) ត្រឡប់មកវិញ */}
       <div className="pt-16 text-center">
         <p className="text-3xl font-bold text-white">
           {student.name || t.noName}
@@ -146,7 +145,7 @@ window.StudentCard = ({
             </p>
           </div>
           <button
-            onClick={checkInAction} // !! កែសម្រួល !!
+            onClick={checkInAction} 
             disabled={!canCheckIn}
             className="flex items-center justify-center w-full px-4 py-4 rounded-full text-lg text-blue-800 font-bold transition-all transform hover:scale-105 shadow-lg bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
           >
@@ -214,7 +213,6 @@ window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSel
     student.photoUrl ||
     `https://placehold.co/64x64/EBF4FF/76A9FA?text=${student.name ? student.name.charAt(0) : 'N'}`;
 
-  // !! ថ្មី !!: បង្ហាញ Branch (A/B)
   const branchDisplay = record.branch ? ` (${record.branch})` : '';
 
   return (
@@ -249,7 +247,7 @@ window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSel
         
         {record.passNumber && (
           <p className="text-sm font-semibold text-cyan-300">
-            ({t.statusPass}: {record.passNumber}{branchDisplay}) {/* !! ថ្មី !! */}
+            ({t.statusPass}: {record.passNumber}{branchDisplay})
           </p>
         )}
         
@@ -306,7 +304,6 @@ window.OnBreakStudentListCard = ({
     ? handleOpenQrScanner 
     : () => onCheckIn();
 
-  // !! ថ្មី !!: បង្ហាញ Branch (A/B)
   const branchDisplay = record.branch ? ` (${record.branch})` : '';
 
   return (
@@ -330,7 +327,7 @@ window.OnBreakStudentListCard = ({
           )}
         </p>
         <p className="text-sm text-blue-200">
-          ({t.statusPass}: {record.passNumber || '???'}{branchDisplay}) {/* !! ថ្មី !! */}
+          ({t.statusPass}: {record.passNumber || '???'}{branchDisplay})
         </p>
       </div>
       
@@ -569,16 +566,14 @@ window.DeleteConfirmationModal = ({ recordToDelete, onCancel, onConfirm, t }) =>
   };
 
 
-// !! START: កែសម្រួល QrScannerModal ទាំងស្រុង !!
 window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isScannerBusy, t }) => { 
   const [errorMessage, setErrorMessage] = useState(null);
-  const [facingMode, setFacingMode] = useState("environment"); // កាមេរ៉ាក្រោយ
-  const [isMirrored, setIsMirrored] = useState(false); // State សម្រាប់បិទ/បើក mirror
+  const [facingMode, setFacingMode] = useState("environment"); 
+  const [isMirrored, setIsMirrored] = useState(false); 
   
   const html5QrCodeRef = React.useRef(null);
   const scannerId = "qr-reader"; 
 
-  // Function to stop the scanner
   const stopScanner = () => {
     if (html5QrCodeRef.current) {
       try {
@@ -596,7 +591,6 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
     }
   };
 
-  // Function to start the scanner
   const startScanner = (mode) => {
     setErrorMessage(null);
     const element = document.getElementById(scannerId);
@@ -609,7 +603,7 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
       };
       
       const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-  
+
       html5QrCode.start({ facingMode: mode }, config, qrCodeSuccessCallback)
         .catch(err => {
           console.error(`Unable to start ${mode} camera`, err);
@@ -618,42 +612,33 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
     }
   };
 
-  // Effect to manage scanner start/stop
   useEffect(() => {
     if (isOpen) {
       if (!isScannerBusy) {
-        // Start scanner on open
         startScanner(facingMode);
       } else {
-        // Stop if busy
         stopScanner();
       }
     } else {
-      // Stop scanner on close
       stopScanner();
     }
     
-    // Cleanup function
     return () => {
       stopScanner();
     };
-  }, [isOpen, isScannerBusy, facingMode]); // !! ថ្មី !!: បន្ថែម facingMode
+  }, [isOpen, isScannerBusy, facingMode]); 
 
-  // !! ថ្មី !!: Effect សម្រាប់គ្រប់គ្រង Mirror (ដាច់ដោយឡែក)
   useEffect(() => {
     if (!isOpen || isScannerBusy) return;
 
-    // រង់ចាំឲ្យកាមេរ៉ាបើក
     const timeoutId = setTimeout(() => {
       try {
         const videoElement = document.querySelector(`#${scannerId} video`);
         if (videoElement) {
           if (facingMode === 'user') {
-            // កាមេរ៉ាមុខ: ប្រើ State 'isMirrored'
             videoElement.style.setProperty('transform', isMirrored ? 'scaleX(-1)' : 'scaleX(1)', 'important');
             console.log(`Front camera mirror set to: ${isMirrored}`);
           } else {
-            // កាមេរ៉ាក្រោយ: បង្ខំឲ្យធម្មតា (មិនបញ្ចាស់) ជានិច្ច
             videoElement.style.setProperty('transform', 'scaleX(1)', 'important');
             console.log('Back camera forced to non-mirror.');
           }
@@ -661,22 +646,18 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
       } catch (e) {
         console.error("Error applying mirror style:", e);
       }
-    }, 200); // បង្កើនเวลารอคอยបន្តិច
+    }, 200); 
 
     return () => clearTimeout(timeoutId);
 
-  }, [isOpen, isScannerBusy, facingMode, isMirrored]); // !! ថ្មី !!: បន្ថែម isMirrored
+  }, [isOpen, isScannerBusy, facingMode, isMirrored]);
 
-  // !! ថ្មី !!: Handler សម្រាប់ត្រឡប់កាមេរ៉ា
   const handleFlipCamera = () => {
     if (isScannerBusy) return;
     setFacingMode(prevMode => (prevMode === "user" ? "environment" : "user"));
-    // Reset mirror state ទៅតាម Default របស់ Library (បញ្ចាស់)
-    // តែ State របស់យើងនៅតែជា false (ធម្មតា)
     setIsMirrored(false); 
   };
 
-  // !! ថ្មី !!: Handler សម្រាប់បិទ/បើក Mirror
   const handleToggleMirror = () => {
     setIsMirrored(prev => !prev);
   };
@@ -699,7 +680,6 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
           <IconClose />
         </button>
         
-        {/* !! ថ្មី !!: ប៊ូតុងត្រឡប់កាមេរ៉ា */}
         <button
           onClick={handleFlipCamera}
           className="absolute top-4 left-4 text-gray-800 bg-gray-200 p-2 rounded-full z-10"
@@ -708,7 +688,6 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
           <IconCameraRotate className="w-6 h-6" />
         </button>
 
-        {/* !! ថ្មី !!: ប៊ូតុង បិទ/បើក Mirror (បង្ហាញតែពេល dùng កាមេរ៉ាមុខ) */}
         {facingMode === 'user' && (
           <button
             onClick={handleToggleMirror}
@@ -723,9 +702,6 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
           {t.scanToComeBack}
         </h3>
         
-        {/* !! ថ្មី !!: បន្ថែម <style> tag ដើម្បីបង្ខំឲ្យ Video មិនបញ្ចាស់ */}
-        {/* (បានដកចេញ ព្រោះយើងប្រើ JavaScript setTimeout វិញ) */}
-
         <div id={scannerId} className="w-full"></div> 
         
         <div className="mt-4 text-center h-12">
@@ -757,7 +733,135 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
     </div>
   );
 };
-// !! END: កែសម្រួល QrScannerModal !!
+
+// !! ថ្មី !!: FaceScannerModal Component
+window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) => {
+  const videoRef = useRef();
+  const canvasRef = useRef();
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [detectionStatus, setDetectionStatus] = useState(t.loadingModels); // កំណត់ Default Message
+  const [matchedName, setMatchedName] = useState(null);
+
+  useEffect(() => {
+    let stream = null;
+
+    const startVideo = async () => {
+      if (isOpen && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            setDetectionStatus(t.processing);
+          }
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          setDetectionStatus(t.cameraError);
+        }
+      }
+    };
+
+    if (isOpen) {
+      startVideo();
+    } else {
+        if (videoRef.current && videoRef.current.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        }
+    }
+
+    return () => {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+    };
+  }, [isOpen, t]);
+
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // រង់ចាំ video load ពេញលេញ
+    if (!video || !canvas) return;
+
+    const displaySize = { width: video.videoWidth, height: video.videoHeight };
+    if (displaySize.width === 0 || displaySize.height === 0) return; // ការពារ Error
+
+    faceapi.matchDimensions(canvas, displaySize);
+
+    const interval = setInterval(async () => {
+      if (!video || !canvas || !faceMatcher || video.paused || video.ended) return;
+
+      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
+      
+      // សម្អាត Canvas
+      const context = canvas.getContext('2d');
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Optional: គូរប្រអប់
+      // faceapi.draw.drawDetections(canvas, resizedDetections);
+
+      if (detections.length > 0) {
+        detections.forEach(detection => {
+          const match = faceMatcher.findBestMatch(detection.descriptor);
+          
+          // គូសប្រអប់ និងឈ្មោះ
+          const box = detection.detection.box;
+          const label = match.toString();
+          const drawBox = new faceapi.draw.DrawBox(box, { label: label });
+          drawBox.draw(canvas);
+
+          // Logic ស្គាល់មុខ
+          if (match.label !== 'unknown') {
+             setMatchedName(match.label);
+             
+             // ផ្អាកបន្តិចដើម្បីឲ្យគេឃើញឈ្មោះ
+             clearInterval(interval);
+             setTimeout(() => {
+                 onMatchFound(match.label); 
+             }, 1500);
+          }
+        });
+      } else {
+          setMatchedName(null);
+      }
+
+    }, 200); // Check រៀងរាល់ 200ms
+
+    return () => clearInterval(interval);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg p-4 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-600 bg-gray-200 p-2 rounded-full z-20 hover:bg-gray-300">
+          <window.appSetup.IconClose />
+        </button>
+        
+        <div className="relative flex justify-center bg-black rounded-xl overflow-hidden mt-10 mb-4">
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                muted 
+                onPlay={handleVideoPlay}
+                className="w-full h-auto object-cover"
+            />
+            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
+        </div>
+
+        <div className="text-center">
+            <h3 className="text-xl font-bold mb-2">{t.faceScan}</h3>
+            <p className={`text-lg font-semibold ${matchedName ? 'text-green-600 animate-pulse' : 'text-gray-500'}`}>
+                {matchedName ? `${t.faceMatch} ${matchedName}` : detectionStatus}
+            </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 window.InfoAlertModal = ({ alertInfo, onClose, t }) => {
   if (!alertInfo.isOpen) return null;
@@ -848,15 +952,13 @@ window.InputPromptModal = ({ promptInfo, onSubmit, onCancel, t }) => {
   );
 };
 
-// !! ថ្មី !!: Pagination Component
 window.PaginationControls = ({ currentPage, totalPages, onNext, onPrev, t }) => {
   if (totalPages <= 1) {
-    return null; // មិនបាច់បង្ហាញទេ បើមានតែមួយទំព័រ
+    return null; 
   }
 
   return (
     <div className="w-full max-w-md mx-auto mt-4 flex justify-between items-center">
-      {/* ប៊ូតុងថយក្រោយ (Prev) */}
       <button
         onClick={onPrev}
         disabled={currentPage === 1}
@@ -865,12 +967,10 @@ window.PaginationControls = ({ currentPage, totalPages, onNext, onPrev, t }) => 
         <IconArrowLeft />
       </button>
 
-      {/* លេខទំព័រ */}
       <span className="text-lg font-bold text-white">
         {t.paginationPage} {currentPage} / {totalPages}
       </span>
 
-      {/* ប៊ូតុងទៅមុខ (Next) */}
       <button
         onClick={onNext}
         disabled={currentPage === totalPages}
