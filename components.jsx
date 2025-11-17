@@ -607,7 +607,12 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
       html5QrCode.start({ facingMode: mode }, config, qrCodeSuccessCallback)
         .catch(err => {
           console.error(`Unable to start ${mode} camera`, err);
-          setErrorMessage(t.cameraError);
+          // !! កែសម្រួល !!: ពិនិត្យ Error ជាក់លាក់
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDismissedError') {
+            setErrorMessage(t.cameraPermissionDenied);
+          } else {
+            setErrorMessage(t.cameraError);
+          }
         });
     }
   };
@@ -739,8 +744,9 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
   const videoRef = useRef();
   const canvasRef = useRef();
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [detectionStatus, setDetectionStatus] = useState(t.loadingModels); // កំណត់ Default Message
+  const [detectionStatus, setDetectionStatus] = useState(t.loadingModels);
   const [matchedName, setMatchedName] = useState(null);
+  const intervalRef = useRef(null); // Ref សម្រាប់ Interval
 
   useEffect(() => {
     let stream = null;
@@ -755,21 +761,35 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
           }
         } catch (err) {
           console.error("Error accessing camera:", err);
-          setDetectionStatus(t.cameraError);
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDismissedError') {
+            setDetectionStatus(t.cameraPermissionDenied);
+          } else {
+            setDetectionStatus(t.cameraError);
+          }
         }
       }
+    };
+
+    const stopVideo = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current); // សម្អាត Interval
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject = null;
+      }
+      setIsVideoPlaying(false);
+      setMatchedName(null);
     };
 
     if (isOpen) {
       startVideo();
     } else {
-        if (videoRef.current && videoRef.current.srcObject) {
-            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-        }
+      stopVideo();
     }
 
     return () => {
-      if (stream) stream.getTracks().forEach(track => track.stop());
+      stopVideo();
     };
   }, [isOpen, t]);
 
@@ -778,15 +798,17 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    // រង់ចាំ video load ពេញលេញ
     if (!video || !canvas) return;
 
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
-    if (displaySize.width === 0 || displaySize.height === 0) return; // ការពារ Error
+    if (displaySize.width === 0 || displaySize.height === 0) {
+      setTimeout(handleVideoPlay, 100); 
+      return;
+    }
 
     faceapi.matchDimensions(canvas, displaySize);
 
-    const interval = setInterval(async () => {
+    intervalRef.current = setInterval(async () => {
       if (!video || !canvas || !faceMatcher || video.paused || video.ended) return;
 
       const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
@@ -795,29 +817,22 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
 
       const resizedDetections = faceapi.resizeResults(detections, displaySize);
       
-      // សម្អាត Canvas
       const context = canvas.getContext('2d');
       context.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Optional: គូរប្រអប់
-      // faceapi.draw.drawDetections(canvas, resizedDetections);
-
       if (detections.length > 0) {
         detections.forEach(detection => {
           const match = faceMatcher.findBestMatch(detection.descriptor);
           
-          // គូសប្រអប់ និងឈ្មោះ
           const box = detection.detection.box;
           const label = match.toString();
           const drawBox = new faceapi.draw.DrawBox(box, { label: label });
           drawBox.draw(canvas);
 
-          // Logic ស្គាល់មុខ
           if (match.label !== 'unknown') {
              setMatchedName(match.label);
              
-             // ផ្អាកបន្តិចដើម្បីឲ្យគេឃើញឈ្មោះ
-             clearInterval(interval);
+             if (intervalRef.current) clearInterval(intervalRef.current);
              setTimeout(() => {
                  onMatchFound(match.label); 
              }, 1500);
@@ -825,11 +840,10 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
         });
       } else {
           setMatchedName(null);
+          setDetectionStatus(t.noFaceDetected);
       }
 
-    }, 200); // Check រៀងរាល់ 200ms
-
-    return () => clearInterval(interval);
+    }, 300); 
   };
 
   if (!isOpen) return null;
@@ -846,13 +860,15 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
                 ref={videoRef} 
                 autoPlay 
                 muted 
+                playsInline 
                 onPlay={handleVideoPlay}
                 className="w-full h-auto object-cover"
+                style={{ transform: 'scaleX(-1)' }} 
             />
-            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
+            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" style={{ transform: 'scaleX(-1)' }} />
         </div>
 
-        <div className="text-center">
+        <div className="text-center h-12">
             <h3 className="text-xl font-bold mb-2">{t.faceScan}</h3>
             <p className={`text-lg font-semibold ${matchedName ? 'text-green-600 animate-pulse' : 'text-gray-500'}`}>
                 {matchedName ? `${t.faceMatch} ${matchedName}` : detectionStatus}
