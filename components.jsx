@@ -17,11 +17,11 @@ const {
 
 const { useState, useEffect, useRef } = React;
 
-// ... (window.StudentCard, window.CompletedStudentListCard, ... គឺដូចដើម) ...
-// ... (មិនមានការកែប្រែ window.StudentCard) ...
+// !! START: កែសម្រួល StudentCard !!
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
-  handleCheckOut, 
+  // handleCheckOut, // !! លុប !!
+  onCheckOutClick, // !! ថ្មី !!: ប្រើ Prop នេះជំនួស
   handleCheckIn, 
   handleOpenQrScanner, 
   onDeleteClick, 
@@ -167,10 +167,10 @@ window.StudentCard = ({
               {isSpecialCase && <IconSpecial />}
             </p>
             
-            {/* Check-out Button (បើអាច) */}
+            {/* !! កែសម្រួល !!: ប្រើ onCheckOutClick */}
             {canCheckOut && (
               <button
-                onClick={() => handleCheckOut(student.id)}
+                onClick={() => onCheckOutClick(student.id)}
                 disabled={!canCheckOut} 
                 className="flex items-center justify-center p-4 rounded-full text-lg text-white font-bold transition-all transform hover:scale-105 shadow-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
               >
@@ -191,8 +191,8 @@ window.StudentCard = ({
     </div>
   );
 };
+// !! END: កែសម្រួល StudentCard !!
 
-// ... (window.CompletedStudentListCard ដូចដើម) ...
 window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSelect, onDeleteClick, isSelectionMode, t, overtimeLimit }) => {
   
   const formatTime = (isoString) => {
@@ -284,7 +284,6 @@ window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSel
   );
 };
 
-// ... (window.OnBreakStudentListCard ដូចដើម) ...
 window.OnBreakStudentListCard = ({ 
   student, record, elapsedMins, isOvertime, 
   onCheckIn, 
@@ -361,7 +360,6 @@ window.OnBreakStudentListCard = ({
   );
 };
 
-// ... (window.PasswordConfirmationModal ដូចដើម) ...
 window.PasswordConfirmationModal = ({ prompt, onSubmit, onCancel, t }) => {
   if (!prompt.isOpen) return null;
   
@@ -421,7 +419,6 @@ window.PasswordConfirmationModal = ({ prompt, onSubmit, onCancel, t }) => {
   );
 };
 
-// ... (window.AdminActionModal ដូចដើម) ...
 window.AdminActionModal = ({ isOpen, onClose, onSelectClick, onBulkClick, isBulkLoading, bulkDeleteDate, setBulkDeleteDate, bulkDeleteMonth, setBulkDeleteMonth, t }) => {
   if (!isOpen) return null;
   
@@ -488,7 +485,6 @@ window.AdminActionModal = ({ isOpen, onClose, onSelectClick, onBulkClick, isBulk
   );
 };
 
-// ... (window.CompletedListHeader ដូចដើម) ...
 window.CompletedListHeader = ({ onAdminClick, onMultiDeleteClick, onCancelMultiSelect, selectionCount, isSelectionMode, t }) => {
   return (
     <div className="w-full max-w-md mx-auto mb-4 flex justify-between items-center">
@@ -526,14 +522,12 @@ window.CompletedListHeader = ({ onAdminClick, onMultiDeleteClick, onCancelMultiS
   );
 };
 
-// ... (window.LoadingSpinner ដូចដើម) ...
 window.LoadingSpinner = () => (
   <div className="flex justify-center items-center mt-10">
     <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
   </div>
 );
 
-// ... (window.DeleteConfirmationModal ដូចដើម) ...
 window.DeleteConfirmationModal = ({ recordToDelete, onCancel, onConfirm, t }) => {
     if (!recordToDelete) return null;
     
@@ -574,7 +568,7 @@ window.DeleteConfirmationModal = ({ recordToDelete, onCancel, onConfirm, t }) =>
     );
   };
 
-// ... (window.QrScannerModal ដូចដើម - កូដនេះត្រឹមត្រូវ) ...
+
 window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isScannerBusy, t }) => { 
   const [errorMessage, setErrorMessage] = useState(null);
   const [facingMode, setFacingMode] = useState("environment"); 
@@ -747,84 +741,36 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
   );
 };
 
-// !! START: កែសម្រួល FaceScannerModal (Bug Fix) !!
-window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) => {
+// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode) !!
+window.FaceScannerModal = ({ 
+    isOpen, onClose, onMatchFound, faceMatcher, t,
+    feedback, // !! ថ្មី !!
+    clearFeedback // !! ថ្មី !!
+}) => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState(t.loadingModels);
-  const [matchedName, setMatchedName] = useState(null);
   const intervalRef = useRef(null); 
+  const [isBusy, setIsBusy] = useState(false); // State សម្រាប់ការពារការស្កេនជាន់គ្នា
 
-  // Effect ទី 1: គ្រប់គ្រងការបើក/បិទ កាមេរ៉ា
-  useEffect(() => {
-    let stream = null;
-
-    const startVideo = async () => {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            setDetectionStatus(t.processing); // កំណត់ត្រឹម "កំពុងដំណើរការ"
-          }
-        } catch (err) {
-          console.error("Error accessing camera:", err);
-          if (err.name === 'NotAllowedError' || err.name === 'PermissionDismissedError') {
-            setDetectionStatus(t.cameraPermissionDenied);
-          } else {
-            setDetectionStatus(t.cameraError);
-          }
-        }
-      }
-    };
-
-    const stopVideo = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject = null;
-      }
-      setIsVideoPlaying(false);
-      setMatchedName(null);
-      setDetectionStatus(t.loadingModels); // Reset status
-    };
-
-    if (isOpen) {
-      startVideo();
-    } else {
-      stopVideo();
-    }
-
-    return () => {
-      stopVideo();
-    };
-  }, [isOpen, t]); // Effect នេះអាស្រ័យតែលើ isOpen និង t
-
-  // Effect ទី 2: គ្រប់គ្រងការស្កេន (អាស្រ័យលើ faceMatcher)
-  useEffect(() => {
-    if (!isOpen || !isVideoPlaying || !faceMatcher) {
-      // បើមិនទាន់ Ready (video មិនទាន់ Play ឬ faceMatcher មិនទាន់ Load) គឺមិនធ្វើអ្វីសោះ
-      if (isOpen && isVideoPlaying && !faceMatcher) {
-        // បើ video បើក តែ faceMatcher មិនទាន់មាន (កំពុង Load 844 នាក់)
-        setDetectionStatus(t.loadingModels); // បង្ហាញ "កំពុងផ្ទុកទិន្នន័យមុខ..."
-      }
-      return; 
-    }
+  // Function សម្រាប់ចាប់ផ្ដើមស្កេន
+  const startScanInterval = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current); // សម្អាត interval ចាស់
+    if (!videoRef.current || !canvasRef.current || !faceMatcher) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
+    // !! ជួសជុល !!: ប្រើ videoWidth/videoHeight ធានាថា Video បើកហើយ
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
     if (displaySize.width === 0 || displaySize.height === 0) return;
 
     faceapi.matchDimensions(canvas, displaySize);
 
-    // បើ faceMatcher មាន (Load រួចរាល់) ចាប់ផ្ដើម Interval
     intervalRef.current = setInterval(async () => {
-      if (!video || !canvas || video.paused || video.ended) return;
+      // !! ជួសជុល !!: បន្ថែម !isBusy ក្នុង Check នេះ
+      if (!video || !canvas || video.paused || video.ended || isBusy) return;
 
       const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
@@ -838,39 +784,113 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
       if (detections.length > 0) {
         detections.forEach(detection => {
           const match = faceMatcher.findBestMatch(detection.descriptor);
-          
-          const box = detection.detection.box;
           const label = match.toString();
-          const drawBox = new faceapi.draw.DrawBox(box, { label: label });
+          const drawBox = new faceapi.draw.DrawBox(detection.detection.box, { label: label });
           drawBox.draw(canvas);
 
-          if (match.label !== 'unknown') {
-             setMatchedName(match.label);
-             
+          if (match.label !== 'unknown' && !isBusy) {
+             setIsBusy(true); // !! ចាក់សោ !!
              if (intervalRef.current) clearInterval(intervalRef.current);
-             setTimeout(() => {
-                 onMatchFound(match.label); 
-             }, 1500);
+             onMatchFound(match.label); // ហៅ App.jsx handleCheckOut
           }
         });
       } else {
-          setMatchedName(null);
-          setDetectionStatus(t.noFaceDetected); // រកមិនឃើញមុខ
+          // !! កែសម្រួល !!: បង្ហាញតែពេល Feedback ទំនេរ
+          if (!feedback.message) {
+            setDetectionStatus(t.noFaceDetected); 
+          }
       }
 
     }, 300); // ស្កេនរៀងរាល់ 300ms
+  };
 
+  // Effect ទី 1: បើក/បិទ កាមេរ៉ា
+  useEffect(() => {
+    let stream = null;
+    const startVideo = async () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            // (មិនបាច់ setDetectionStatus(t.processing) ទៀតទេ)
+          }
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDismissedError') {
+            setDetectionStatus(t.cameraPermissionDenied);
+          } else {
+            setDetectionStatus(t.cameraError);
+          }
+        }
+      }
+    };
+    const stopVideo = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject = null;
+      }
+      setIsVideoPlaying(false);
+      setDetectionStatus(t.loadingModels); 
+      clearFeedback(); 
+      setIsBusy(false); // !! ថ្មី !!: Reset Busy ពេលបិទ Modal
+    };
+
+    if (isOpen) {
+      startVideo();
+    } else {
+      stopVideo();
+    }
+    return () => { stopVideo(); };
+  }, [isOpen, t, clearFeedback]);
+
+  // Effect ទី 2: ចាប់ផ្ដើម Interval ពេល Video Play និង faceMatcher រួចរាល់
+  useEffect(() => {
+    // !! ជួសជុល !!: ពិនិត្យ !isBusy មុនពេលចាប់ផ្ដើម
+    if (isOpen && isVideoPlaying && faceMatcher && !isBusy) {
+      setDetectionStatus(t.processing); // ចាប់ផ្ដើមស្កេន
+      startScanInterval(); 
+    } else if (isOpen && isVideoPlaying && !faceMatcher) {
+      setDetectionStatus(t.loadingModels);
+    }
+    
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
+  }, [isOpen, isVideoPlaying, faceMatcher, isBusy]); // អាស្រ័យលើ isBusy ដែរ
 
-  }, [isOpen, isVideoPlaying, faceMatcher, onMatchFound, t]); // Effect នេះរត់ឡើងវិញ ពេល faceMatcher Update
+  // Effect ទី 3: គ្រប់គ្រង Feedback
+  useEffect(() => {
+    if (feedback.message) {
+      // 1. បញ្ឈប់ការស្កេន (isBusy = true)
+      setIsBusy(true);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      // 2. រង់ចាំ 3 វិនាទី
+      const timer = setTimeout(() => {
+        // 3. សម្អាត Feedback
+        clearFeedback();
+        // 4. ដោះ Busy (អនុញ្ញាតឲ្យ Effect 2 រត់វិញ)
+        setIsBusy(false);
+      }, 3000); // បង្ហាញ Feedback រយៈពេល 3 វិនាទី
+
+      return () => clearTimeout(timer);
+    }
+  }, [feedback, clearFeedback]);
+
 
   const handleVideoPlay = () => {
-    setIsVideoPlaying(true); // កំណត់ថា Video បាន Play ហើយ
+    setIsVideoPlaying(true); 
   };
 
   if (!isOpen) return null;
+
+  const feedbackColor = feedback.type === 'success' ? 'text-green-600 animate-pulse' : 'text-red-600';
+  // !! កែសម្រួល !!: ផ្ដល់អាទិភាពឲ្យ Feedback មុន
+  const currentStatus = feedback.message ? feedback.message : detectionStatus;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={onClose}>
@@ -894,8 +914,8 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
 
         <div className="text-center h-12">
             <h3 className="text-xl font-bold mb-2">{t.faceScan}</h3>
-            <p className={`text-lg font-semibold ${matchedName ? 'text-green-600 animate-pulse' : 'text-gray-500'}`}>
-                {matchedName ? `${t.faceMatch} ${matchedName}` : detectionStatus}
+            <p className={`text-lg font-semibold ${feedback.message ? feedbackColor : 'text-gray-500'}`}>
+                {currentStatus}
             </p>
         </div>
       </div>
@@ -904,7 +924,6 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
 };
 // !! END: កែសម្រួល FaceScannerModal !!
 
-// ... (window.InfoAlertModal ដូចដើម) ...
 window.InfoAlertModal = ({ alertInfo, onClose, t }) => {
   if (!alertInfo.isOpen) return null;
   
@@ -940,7 +959,6 @@ window.InfoAlertModal = ({ alertInfo, onClose, t }) => {
   );
 };
 
-// ... (window.InputPromptModal ដូចដើម) ...
 window.InputPromptModal = ({ promptInfo, onSubmit, onCancel, t }) => {
   if (!promptInfo.isOpen) return null;
   
@@ -995,7 +1013,6 @@ window.InputPromptModal = ({ promptInfo, onSubmit, onCancel, t }) => {
   );
 };
 
-// ... (window.PaginationControls ដូចដើម) ...
 window.PaginationControls = ({ currentPage, totalPages, onNext, onPrev, t }) => {
   if (totalPages <= 1) {
     return null; 
