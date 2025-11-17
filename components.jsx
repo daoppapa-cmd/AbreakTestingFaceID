@@ -12,11 +12,13 @@ const {
   IconArrowLeft, IconArrowRight, 
   IconCameraRotate, 
   IconToggleLeft, IconToggleRight,
-  IconFaceId // !! ថ្មី !!: ទាញ IconFaceId
+  IconFaceId
 } = window.appSetup;
 
 const { useState, useEffect, useRef } = React;
 
+// ... (window.StudentCard, window.CompletedStudentListCard, ... គឺដូចដើម) ...
+// ... (មិនមានការកែប្រែ window.StudentCard) ...
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
   handleCheckOut, 
@@ -190,6 +192,7 @@ window.StudentCard = ({
   );
 };
 
+// ... (window.CompletedStudentListCard ដូចដើម) ...
 window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSelect, onDeleteClick, isSelectionMode, t, overtimeLimit }) => {
   
   const formatTime = (isoString) => {
@@ -281,6 +284,7 @@ window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSel
   );
 };
 
+// ... (window.OnBreakStudentListCard ដូចដើម) ...
 window.OnBreakStudentListCard = ({ 
   student, record, elapsedMins, isOvertime, 
   onCheckIn, 
@@ -357,6 +361,7 @@ window.OnBreakStudentListCard = ({
   );
 };
 
+// ... (window.PasswordConfirmationModal ដូចដើម) ...
 window.PasswordConfirmationModal = ({ prompt, onSubmit, onCancel, t }) => {
   if (!prompt.isOpen) return null;
   
@@ -416,6 +421,7 @@ window.PasswordConfirmationModal = ({ prompt, onSubmit, onCancel, t }) => {
   );
 };
 
+// ... (window.AdminActionModal ដូចដើម) ...
 window.AdminActionModal = ({ isOpen, onClose, onSelectClick, onBulkClick, isBulkLoading, bulkDeleteDate, setBulkDeleteDate, bulkDeleteMonth, setBulkDeleteMonth, t }) => {
   if (!isOpen) return null;
   
@@ -482,6 +488,7 @@ window.AdminActionModal = ({ isOpen, onClose, onSelectClick, onBulkClick, isBulk
   );
 };
 
+// ... (window.CompletedListHeader ដូចដើម) ...
 window.CompletedListHeader = ({ onAdminClick, onMultiDeleteClick, onCancelMultiSelect, selectionCount, isSelectionMode, t }) => {
   return (
     <div className="w-full max-w-md mx-auto mb-4 flex justify-between items-center">
@@ -519,12 +526,14 @@ window.CompletedListHeader = ({ onAdminClick, onMultiDeleteClick, onCancelMultiS
   );
 };
 
+// ... (window.LoadingSpinner ដូចដើម) ...
 window.LoadingSpinner = () => (
   <div className="flex justify-center items-center mt-10">
     <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
   </div>
 );
 
+// ... (window.DeleteConfirmationModal ដូចដើម) ...
 window.DeleteConfirmationModal = ({ recordToDelete, onCancel, onConfirm, t }) => {
     if (!recordToDelete) return null;
     
@@ -565,7 +574,7 @@ window.DeleteConfirmationModal = ({ recordToDelete, onCancel, onConfirm, t }) =>
     );
   };
 
-
+// ... (window.QrScannerModal ដូចដើម - កូដនេះត្រឹមត្រូវ) ...
 window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isScannerBusy, t }) => { 
   const [errorMessage, setErrorMessage] = useState(null);
   const [facingMode, setFacingMode] = useState("environment"); 
@@ -607,7 +616,6 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
       html5QrCode.start({ facingMode: mode }, config, qrCodeSuccessCallback)
         .catch(err => {
           console.error(`Unable to start ${mode} camera`, err);
-          // !! កែសម្រួល !!: ពិនិត្យ Error ជាក់លាក់
           if (err.name === 'NotAllowedError' || err.name === 'PermissionDismissedError') {
             setErrorMessage(t.cameraPermissionDenied);
           } else {
@@ -739,25 +747,26 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
   );
 };
 
-// !! ថ្មី !!: FaceScannerModal Component
+// !! START: កែសម្រួល FaceScannerModal (Bug Fix) !!
 window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState(t.loadingModels);
   const [matchedName, setMatchedName] = useState(null);
-  const intervalRef = useRef(null); // Ref សម្រាប់ Interval
+  const intervalRef = useRef(null); 
 
+  // Effect ទី 1: គ្រប់គ្រងការបើក/បិទ កាមេរ៉ា
   useEffect(() => {
     let stream = null;
 
     const startVideo = async () => {
-      if (isOpen && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: {} });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            setDetectionStatus(t.processing);
+            setDetectionStatus(t.processing); // កំណត់ត្រឹម "កំពុងដំណើរការ"
           }
         } catch (err) {
           console.error("Error accessing camera:", err);
@@ -771,7 +780,7 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
     };
 
     const stopVideo = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current); // សម្អាត Interval
+      if (intervalRef.current) clearInterval(intervalRef.current);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -780,6 +789,7 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
       }
       setIsVideoPlaying(false);
       setMatchedName(null);
+      setDetectionStatus(t.loadingModels); // Reset status
     };
 
     if (isOpen) {
@@ -791,25 +801,30 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
     return () => {
       stopVideo();
     };
-  }, [isOpen, t]);
+  }, [isOpen, t]); // Effect នេះអាស្រ័យតែលើ isOpen និង t
 
-  const handleVideoPlay = () => {
-    setIsVideoPlaying(true);
+  // Effect ទី 2: គ្រប់គ្រងការស្កេន (អាស្រ័យលើ faceMatcher)
+  useEffect(() => {
+    if (!isOpen || !isVideoPlaying || !faceMatcher) {
+      // បើមិនទាន់ Ready (video មិនទាន់ Play ឬ faceMatcher មិនទាន់ Load) គឺមិនធ្វើអ្វីសោះ
+      if (isOpen && isVideoPlaying && !faceMatcher) {
+        // បើ video បើក តែ faceMatcher មិនទាន់មាន (កំពុង Load 844 នាក់)
+        setDetectionStatus(t.loadingModels); // បង្ហាញ "កំពុងផ្ទុកទិន្នន័យមុខ..."
+      }
+      return; 
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    if (!video || !canvas) return;
-
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
-    if (displaySize.width === 0 || displaySize.height === 0) {
-      setTimeout(handleVideoPlay, 100); 
-      return;
-    }
+    if (displaySize.width === 0 || displaySize.height === 0) return;
 
     faceapi.matchDimensions(canvas, displaySize);
 
+    // បើ faceMatcher មាន (Load រួចរាល់) ចាប់ផ្ដើម Interval
     intervalRef.current = setInterval(async () => {
-      if (!video || !canvas || !faceMatcher || video.paused || video.ended) return;
+      if (!video || !canvas || video.paused || video.ended) return;
 
       const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
@@ -840,10 +855,19 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
         });
       } else {
           setMatchedName(null);
-          setDetectionStatus(t.noFaceDetected);
+          setDetectionStatus(t.noFaceDetected); // រកមិនឃើញមុខ
       }
 
-    }, 300); 
+    }, 300); // ស្កេនរៀងរាល់ 300ms
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+
+  }, [isOpen, isVideoPlaying, faceMatcher, onMatchFound, t]); // Effect នេះរត់ឡើងវិញ ពេល faceMatcher Update
+
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true); // កំណត់ថា Video បាន Play ហើយ
   };
 
   if (!isOpen) return null;
@@ -878,7 +902,9 @@ window.FaceScannerModal = ({ isOpen, onClose, onMatchFound, faceMatcher, t }) =>
     </div>
   );
 };
+// !! END: កែសម្រួល FaceScannerModal !!
 
+// ... (window.InfoAlertModal ដូចដើម) ...
 window.InfoAlertModal = ({ alertInfo, onClose, t }) => {
   if (!alertInfo.isOpen) return null;
   
@@ -914,6 +940,7 @@ window.InfoAlertModal = ({ alertInfo, onClose, t }) => {
   );
 };
 
+// ... (window.InputPromptModal ដូចដើម) ...
 window.InputPromptModal = ({ promptInfo, onSubmit, onCancel, t }) => {
   if (!promptInfo.isOpen) return null;
   
@@ -968,6 +995,7 @@ window.InputPromptModal = ({ promptInfo, onSubmit, onCancel, t }) => {
   );
 };
 
+// ... (window.PaginationControls ដូចដើម) ...
 window.PaginationControls = ({ currentPage, totalPages, onNext, onPrev, t }) => {
   if (totalPages <= 1) {
     return null; 
