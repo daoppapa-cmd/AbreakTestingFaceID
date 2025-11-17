@@ -131,66 +131,99 @@ function App() {
     loadModels();
   }, []);
 
-  // 2. បង្កើត Face Matcher (Optimized)
+  // !! START: កែសម្រួល 2. បង្កើត Face Matcher (ប្រើ LocalStorage Cache) !!
   useEffect(() => {
     if (!isModelsLoaded || students.length === 0) return;
+    
+    // 1. បង្កើត Key សម្រាប់ Cache ដោយផ្អែកលើចំនួនសិស្ស
+    const FACE_CACHE_KEY = `faceApiDescriptors_v${students.length}`;
 
-    const processStudentFaces = async () => {
+    const loadFaceMatcher = async () => {
       setProcessingFaces(true);
       setFaceLoadProgress(0);
-      
-      const labeledDescriptors = [];
-      console.log(`Processing ${students.length} students...`);
 
+      // 2. ព្យាយាមទាញពី Cache មុន
+      try {
+        const cachedData = localStorage.getItem(FACE_CACHE_KEY);
+        if (cachedData) {
+          console.log("Loading face descriptors from cache...");
+          const descriptors = JSON.parse(cachedData);
+          // បំលែង JSON ធម្មតា ទៅជា LabeledFaceDescriptors
+          const labeledDescriptors = descriptors.map(d => 
+            new faceapi.LabeledFaceDescriptors(
+              d._label, 
+              // បំលែង Object {0: 1.2, 1: 3.4} ទៅជា Float32Array
+              [Float32Array.from(Object.values(d._descriptors[0]))]
+            )
+          );
+          
+          if (labeledDescriptors.length > 0) {
+             setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.5));
+             console.log("Face Matcher created from cache.");
+             setProcessingFaces(false);
+             setFaceLoadProgress(100);
+             return; // ចប់! (លឿន)
+          }
+        }
+      } catch (e) {
+         console.warn("Failed to parse face cache. Re-building.", e);
+         localStorage.removeItem(FACE_CACHE_KEY); // បើ Cache ខូច សូមលុបចោល
+      }
+
+      // 3. បើគ្មាន Cache (ឬ Cache ខូច) - ចាប់ផ្ដើមបង្កើតថ្មី (យឺត)
+      console.log("No cache found. Building new face descriptors...");
+      const descriptorsToCache = [];
       const detectionOptions = new faceapi.TinyFaceDetectorOptions();
 
       for (let i = 0; i < students.length; i++) {
         const student = students[i];
-
         if (i % 5 === 0) {
            setFaceLoadProgress(Math.round(((i + 1) / students.length) * 100));
            await new Promise(resolve => setTimeout(resolve, 0));
         }
-
         if (!student.photoUrl) continue;
 
         try {
             const img = document.createElement('img');
             img.src = student.photoUrl;
             img.crossOrigin = 'anonymous'; 
-
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-            });
-
-            const detection = await faceapi.detectSingleFace(img, detectionOptions)
-                                           .withFaceLandmarks()
-                                           .withFaceDescriptor();
-            
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+            const detection = await faceapi.detectSingleFace(img, detectionOptions).withFaceLandmarks().withFaceDescriptor();
             if (detection) {
-                labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
+                // ត្រូវតែបង្កើត LabeledFaceDescriptors ភ្លាមៗ ព្រោះ JSON.stringify ត្រូវការ Object នេះ
+                descriptorsToCache.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
             }
-        } catch (err) {
-           // បរាជ័យក្នុងការ Load រូបភាព
-        }
+        } catch (err) { /* រំលងរូបថតដែល Error */ }
       }
 
-      if (labeledDescriptors.length > 0) {
-        setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.5));
-        console.log(`Face Matcher created with ${labeledDescriptors.length} faces.`);
+      // 4. បង្កើត Matcher និង រក្សាទុកក្នុង Cache
+      if (descriptorsToCache.length > 0) {
+        try {
+          // សម្អាត Cache ចាស់ៗ (បើមាន)
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('faceApiDescriptors_v')) {
+              localStorage.removeItem(key);
+            }
+          });
+          // រក្សាទុក Cache ថ្មី
+          localStorage.setItem(FACE_CACHE_KEY, JSON.stringify(descriptorsToCache));
+          console.log(`Saved ${descriptorsToCache.length} descriptors to cache.`);
+        } catch (e) {
+          console.error("Failed to save to localStorage (quota exceeded?)", e);
+        }
+        // បញ្ជូនទៅ State សម្រាប់ប្រើ session នេះ
+        setFaceMatcher(new faceapi.FaceMatcher(descriptorsToCache, 0.5));
       }
+      
       setProcessingFaces(false);
       setFaceLoadProgress(100);
     };
 
-    const timer = setTimeout(() => {
-        processStudentFaces();
-    }, 1000);
-
+    const timer = setTimeout(loadFaceMatcher, 1000);
     return () => clearTimeout(timer);
 
-  }, [students, isModelsLoaded]);
+  }, [students, isModelsLoaded]); // អាស្រ័យលើ students និង isModelsLoaded
+  // !! END: កែសម្រួល Face Matcher !!
 
 
   // ជំហានទី 1: ដំណើរការ Firebase
@@ -482,7 +515,6 @@ function App() {
       if (committed && assignedPassNumber) {
         return { success: true, studentName: student.name || tRef.current.noName, passNumber: assignedPassNumber };
       } else {
-        // !! កែសម្រួល !!: ពិនិត្យមើលថាតើ Error មកពីសិស្សកំពុងសម្រាក ឬ កាតពេញ
         const studentBreaks = attendanceRef.current[studentId] || [];
         const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
         let errorMsg;
@@ -502,7 +534,7 @@ function App() {
       setAuthError(errorMsg);
       return { success: false, error: errorMsg };
     }
-  }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch, attendanceRef]); // !! ថ្មី !!: បន្ថែម attendanceRef
+  }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch, attendanceRef]);
   
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
@@ -625,12 +657,9 @@ function App() {
   const handleSearchChange = React.useCallback((e) => { setSearchTerm(e.target.value); setSelectedStudentId(""); }, []); 
   const handleSelectStudentFromList = React.useCallback((student) => { setSearchTerm(student.name || String(student.idNumber)); setSelectedStudentId(student.id); setIsSearchFocused(false); }, []);
 
-  // !! START: កែសម្រួល Function ទាំងនេះដោយប្រើ useCallback !!
-  
-  // ប្រើ useCallback ដើម្បីកុំឲ្យ Function នេះបង្កើតថ្មីរាល់ពេល
   const clearFeedback = React.useCallback(() => {
     setFaceScanFeedback({ message: '', type: 'info' });
-  }, []); // [] = បង្កើត Function នេះតែម្ដងគត់
+  }, []); 
 
   const handleFaceMatchSuccess = React.useCallback(async (matchedId) => {
     const result = await handleCheckOut(matchedId);
@@ -643,9 +672,8 @@ function App() {
       setFaceScanFeedback({ message: result.error, type: 'error' });
       speak(result.error);
     }
-  }, [handleCheckOut, speak, tRef]); // អាស្រ័យលើ handleCheckOut, speak, tRef
+  }, [handleCheckOut, speak, tRef]);
   
-  // !! END: កែសម្រួល Function ទាំងនេះដោយប្រើ useCallback !!
 
   // --- Main Render ---
   return (
