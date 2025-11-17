@@ -75,7 +75,6 @@ function App() {
   const [processingFaces, setProcessingFaces] = useState(false);
   const [faceLoadProgress, setFaceLoadProgress] = useState(0);
   
-  // !! ថ្មី !!: State សម្រាប់ Feedback ក្នុង Face Scanner
   const [faceScanFeedback, setFaceScanFeedback] = useState({ message: '', type: 'info' });
 
   // --- Refs សម្រាប់ Stale State ---
@@ -413,7 +412,6 @@ function App() {
   // --- Action Handlers ---
   const showAlert = React.useCallback((message, type = 'info') => { setInfoAlert({ isOpen: true, message, type }); }, []);
   
-  // !! START: កែសម្រួល HandleCheckOut ឲ្យ Return លទ្ធផល !!
   const handleCheckOut = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     
@@ -431,14 +429,12 @@ function App() {
         const attData = currentAttendanceData || {};
         const allBreaks = Object.values(attData);
         
-        // ពិនិត្យមើលថាតើសិស្សនេះកំពុងសម្រាក (Active Break) រួចហើយឬនៅ
         const existingActiveBreak = allBreaks.find(r => 
             r.studentId === studentId && 
             r.checkOutTime && 
             !r.checkInTime
         );
         if (existingActiveBreak) {
-            // បោះបង់ Transaction ព្រោះសិស្សកំពុងសម្រាក
             return; // Abort
         }
 
@@ -484,12 +480,18 @@ function App() {
       });
 
       if (committed && assignedPassNumber) {
-        // Transaction ជោគជ័យ
         return { success: true, studentName: student.name || tRef.current.noName, passNumber: assignedPassNumber };
       } else {
-        // Transaction បរាជ័យ (កាតពេញ ឬ សិស្សកំពុងសម្រាក)
-        const currentPassesInUse = sortedStudentsOnBreak.length;
-        const errorMsg = `${tRef.current.statusPassOut} (${currentPassesInUse}/${totalPasses})`;
+        // !! កែសម្រួល !!: ពិនិត្យមើលថាតើ Error មកពីសិស្សកំពុងសម្រាក ឬ កាតពេញ
+        const studentBreaks = attendanceRef.current[studentId] || [];
+        const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
+        let errorMsg;
+        if (activeBreak) {
+          errorMsg = `${student.name} ${tRef.current.statusOnBreak} រួចហើយ។`;
+        } else {
+          const currentPassesInUse = sortedStudentsOnBreak.length;
+          errorMsg = `${tRef.current.statusPassOut} (${currentPassesInUse}/${totalPasses})`;
+        }
         setAuthError(errorMsg);
         return { success: false, error: errorMsg };
       }
@@ -500,8 +502,7 @@ function App() {
       setAuthError(errorMsg);
       return { success: false, error: errorMsg };
     }
-  }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch]);
-  // !! END: កែសម្រួល HandleCheckOut !!
+  }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch, attendanceRef]); // !! ថ្មី !!: បន្ថែម attendanceRef
   
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
@@ -624,22 +625,27 @@ function App() {
   const handleSearchChange = React.useCallback((e) => { setSearchTerm(e.target.value); setSelectedStudentId(""); }, []); 
   const handleSelectStudentFromList = React.useCallback((student) => { setSearchTerm(student.name || String(student.idNumber)); setSelectedStudentId(student.id); setIsSearchFocused(false); }, []);
 
-  // !! START: កែសម្រួល Handler សម្រាប់ Face Scan !!
-  const handleFaceMatchSuccess = async (matchedId) => {
-    // 1. ហៅ handleCheckOut
+  // !! START: កែសម្រួល Function ទាំងនេះដោយប្រើ useCallback !!
+  
+  // ប្រើ useCallback ដើម្បីកុំឲ្យ Function នេះបង្កើតថ្មីរាល់ពេល
+  const clearFeedback = React.useCallback(() => {
+    setFaceScanFeedback({ message: '', type: 'info' });
+  }, []); // [] = បង្កើត Function នេះតែម្ដងគត់
+
+  const handleFaceMatchSuccess = React.useCallback(async (matchedId) => {
     const result = await handleCheckOut(matchedId);
 
-    // 2. បង្ហាញ Feedback ទៅ Modal
     if (result.success) {
-      const message = `${result.studentName} (${t.statusPass}: ${result.passNumber})`;
+      const message = `${result.studentName} (${tRef.current.statusPass}: ${result.passNumber})`;
       setFaceScanFeedback({ message: message, type: 'success' });
       speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
     } else {
       setFaceScanFeedback({ message: result.error, type: 'error' });
       speak(result.error);
     }
-  };
-  // !! END: កែសម្រួល Handler សម្រាប់ Face Scan !!
+  }, [handleCheckOut, speak, tRef]); // អាស្រ័យលើ handleCheckOut, speak, tRef
+  
+  // !! END: កែសម្រួល Function ទាំងនេះដោយប្រើ useCallback !!
 
   // --- Main Render ---
   return (
@@ -684,7 +690,6 @@ function App() {
                           className="block w-full px-6 py-4 bg-white/20 border border-white/30 rounded-full text-white text-lg placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white shadow-inner"
                         />
 
-                        {/* !! កែសម្រួល !!: ប៊ូតុងស្កេនមុខ មាន Progress */}
                         <button
                             onClick={() => setShowFaceScanner(true)}
                             disabled={!faceMatcher || processingFaces}
@@ -697,7 +702,6 @@ function App() {
                         >
                             {processingFaces ? (
                                 <div className="flex items-center justify-center w-6 h-6">
-                                    {/* Circular Progress SVG */}
                                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 24 24">
                                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" className="text-gray-300" />
                                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" className="text-blue-600" 
@@ -735,8 +739,7 @@ function App() {
                   passesInUse={studentsOnBreakCount}
                   attendance={attendance}
                   now={now}
-                  // !! កែសម្រួល !!: បំបែក handleCheckOut សម្រាប់ប៊ូតុង
-                  onCheckOutClick={async (studentId) => {
+                  onCheckOutClick={async (studentId) => { // ប្រើ onCheckOutClick
                      const result = await handleCheckOut(studentId);
                      if (result.success) {
                        speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
@@ -812,15 +815,15 @@ function App() {
         <AdminActionModal isOpen={showAdminModal} onClose={() => setShowAdminModal(false)} onSelectClick={handleToggleSelectionMode} onBulkClick={(mode) => handleOpenBulkDelete(mode)} isBulkLoading={isBulkLoading} bulkDeleteDate={bulkDeleteDate} setBulkDeleteDate={setBulkDeleteDate} bulkDeleteMonth={bulkDeleteMonth} setBulkDeleteMonth={setBulkDeleteMonth} t={t} />
         <QrScannerModal isOpen={showQrScanner} onClose={() => setShowQrScanner(false)} onScanSuccess={handleCheckInByPassNumber} lastScannedInfo={lastScannedInfo} isScannerBusy={isScannerBusy} t={t} />
         
-        {/* !! កែសម្រួល !!: បញ្ជូន Feedback ទៅ FaceScannerModal */}
+        {/* !! កែសម្រួល !!: បញ្ជូន Function ដែលបាន Memoized ទៅ Modal */}
         <FaceScannerModal 
           isOpen={showFaceScanner} 
           onClose={() => setShowFaceScanner(false)} 
           onMatchFound={handleFaceMatchSuccess} 
           faceMatcher={faceMatcher} 
           t={t}
-          feedback={faceScanFeedback} // !! ថ្មី !!
-          clearFeedback={() => setFaceScanFeedback({ message: '', type: 'info' })} // !! ថ្មី !!
+          feedback={faceScanFeedback}
+          clearFeedback={clearFeedback} 
         />
         
         <InfoAlertModal alertInfo={infoAlert} onClose={() => setInfoAlert({ isOpen: false })} t={t} />
