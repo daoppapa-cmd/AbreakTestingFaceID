@@ -15,7 +15,7 @@ function App() {
     passManagementPath,
     appBranch,
     IconSearch, IconClock, IconCheckCircle, IconQrCode, IconSettings, IconTicket,
-    IconClose, IconFaceId // !! ថ្មី !!: ទាញ IconFaceId
+    IconClose, IconFaceId 
   } = window.appSetup;
 
   // ទាញ Components ពី Global Scope
@@ -25,7 +25,7 @@ function App() {
     PasswordConfirmationModal, AdminActionModal, QrScannerModal,
     InfoAlertModal, InputPromptModal,
     PaginationControls,
-    FaceScannerModal // !! ថ្មី !!: ទាញ FaceScannerModal
+    FaceScannerModal
   } = window; 
   
   const { SettingsPage } = window; 
@@ -69,13 +69,14 @@ function App() {
   const [passPrefix, setPassPrefix] = useState(null); 
   const [passStartNumber, setPassStartNumber] = useState(null);
 
-  // !! ថ្មី !!: States សម្រាប់ Face Recognition
   const [showFaceScanner, setShowFaceScanner] = useState(false);
   const [faceMatcher, setFaceMatcher] = useState(null);
   const [isModelsLoaded, setIsModelsLoaded] = useState(false);
   const [processingFaces, setProcessingFaces] = useState(false);
-  // !! កែសម្រួល !!: បន្ថែម State សម្រាប់បង្ហាញភាគរយ
   const [faceLoadProgress, setFaceLoadProgress] = useState(0);
+  
+  // !! ថ្មី !!: State សម្រាប់ Feedback ក្នុង Face Scanner
+  const [faceScanFeedback, setFaceScanFeedback] = useState({ message: '', type: 'info' });
 
   // --- Refs សម្រាប់ Stale State ---
   const t = translations[language] || translations['km'];
@@ -118,7 +119,7 @@ function App() {
       try {
         console.log("Starting to load Face API models...");
         await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), // ប្រើ Tiny Model
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), 
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
@@ -131,7 +132,7 @@ function App() {
     loadModels();
   }, []);
 
-  // !! កែសម្រួល !!: 2. បង្កើត Face Matcher (Optimized for Large Data)
+  // 2. បង្កើត Face Matcher (Optimized)
   useEffect(() => {
     if (!isModelsLoaded || students.length === 0) return;
 
@@ -142,16 +143,13 @@ function App() {
       const labeledDescriptors = [];
       console.log(`Processing ${students.length} students...`);
 
-      // ប្រើ TinyFaceDetectorOptions ដើម្បីលឿន
       const detectionOptions = new faceapi.TinyFaceDetectorOptions();
 
       for (let i = 0; i < students.length; i++) {
         const student = students[i];
 
-        // Update ភាគរយរៀងរាល់ 5 នាក់ម្ដង
         if (i % 5 === 0) {
            setFaceLoadProgress(Math.round(((i + 1) / students.length) * 100));
-           // សម្រាក 0ms ដើម្បីឲ្យ UI ដើរ (unfreeze)
            await new Promise(resolve => setTimeout(resolve, 0));
         }
 
@@ -175,19 +173,18 @@ function App() {
                 labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
             }
         } catch (err) {
-           // រូបខូច ឬ CORS error
+           // បរាជ័យក្នុងការ Load រូបភាព
         }
       }
 
       if (labeledDescriptors.length > 0) {
-        setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.5)); // Distance 0.5 សម្រាប់ Tiny
+        setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.5));
         console.log(`Face Matcher created with ${labeledDescriptors.length} faces.`);
       }
       setProcessingFaces(false);
       setFaceLoadProgress(100);
     };
 
-    // ដំណើរការក្រោយ 1 វិនាទី
     const timer = setTimeout(() => {
         processStudentFaces();
     }, 1000);
@@ -356,13 +353,11 @@ function App() {
   }, [students, attendance]);
 
   const filteredCompletedBreaks = React.useMemo(() => allCompletedBreaks, [allCompletedBreaks]);
-
   const CARDS_PER_PAGE = 12;
   const totalCompletedPages = Math.ceil(filteredCompletedBreaks.length / CARDS_PER_PAGE);
   const paginatedCompletedBreaks = React.useMemo(() => {
     return filteredCompletedBreaks.slice(completedPage * CARDS_PER_PAGE, (completedPage + 1) * CARDS_PER_PAGE);
   }, [filteredCompletedBreaks, completedPage]); 
-
   const selectedStudent = React.useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
   const studentsOnBreakCount = sortedStudentsOnBreak.length;
   
@@ -418,38 +413,60 @@ function App() {
   // --- Action Handlers ---
   const showAlert = React.useCallback((message, type = 'info') => { setInfoAlert({ isOpen: true, message, type }); }, []);
   
+  // !! START: កែសម្រួល HandleCheckOut ឲ្យ Return លទ្ធផល !!
   const handleCheckOut = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
+    
     if (!student || !dbWrite || passPrefix === null || passStartNumber === null) {
-      setAuthError("សូមរង់ចាំ... កំពុងទាញការកំណត់ Prefix។");
-      return;
+      const errorMsg = "សូមរង់ចាំ... កំពុងទាញការកំណត់ Prefix។";
+      setAuthError(errorMsg);
+      return { success: false, error: errorMsg };
     }
+    
     const attendanceRefDb = ref(dbWrite, 'attendance');
     let assignedPassNumber = null; 
+
     try {
-      const { committed } = await runTransaction(attendanceRefDb, (currentAttendanceData) => {
+      const { committed, snapshot } = await runTransaction(attendanceRefDb, (currentAttendanceData) => {
         const attData = currentAttendanceData || {};
         const allBreaks = Object.values(attData);
+        
+        // ពិនិត្យមើលថាតើសិស្សនេះកំពុងសម្រាក (Active Break) រួចហើយឬនៅ
+        const existingActiveBreak = allBreaks.find(r => 
+            r.studentId === studentId && 
+            r.checkOutTime && 
+            !r.checkInTime
+        );
+        if (existingActiveBreak) {
+            // បោះបង់ Transaction ព្រោះសិស្សកំពុងសម្រាក
+            return; // Abort
+        }
+
         const usedPassNumbers = allBreaks
           .filter(r => r.date === appSetup.todayString && r.checkOutTime && !r.checkInTime && r.branch === appBranch)
           .map(r => r.passNumber);
-        if (usedPassNumbers.length >= totalPasses) return; 
+        
+        const passesInUseCount = usedPassNumbers.length;
+        if (passesInUseCount >= totalPasses) {
+          return; // Abort (កាតពេញ)
+        }
 
         let nextPassNumber = null;
-        for (let i = passStartNumber; i < passStartNumber + totalPasses; i++) {
+        const loopStart = passStartNumber;
+        const loopEnd = loopStart + totalPasses;
+        for (let i = loopStart; i < loopEnd; i++) {
           const passNum = passPrefix + String(i).padStart(2, '0'); 
           if (!usedPassNumbers.includes(passNum)) {
             nextPassNumber = passNum;
             break;
           }
         }
-        if (!nextPassNumber) return; 
+        if (!nextPassNumber) return; // Abort (រកកាតទំនេរមិនឃើញ)
 
         assignedPassNumber = nextPassNumber;
         const studentBreaks = allBreaks.filter(r => r.studentId === studentId);
         const completedBreaks = studentBreaks.filter(r => r.checkInTime && r.checkOutTime);
         const newBreakType = (completedBreaks.length >= 2) ? "special" : "normal";
-
         const newRecord = {
           studentId: studentId,
           studentName: student.name || null,
@@ -467,17 +484,24 @@ function App() {
       });
 
       if (committed && assignedPassNumber) {
-        speak(`${student.name || tRef.current.noName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${assignedPassNumber}`);
-        setTimeout(() => { setSearchTerm(''); setSelectedStudentId(''); setIsSearchFocused(false); }, 3000);
+        // Transaction ជោគជ័យ
+        return { success: true, studentName: student.name || tRef.current.noName, passNumber: assignedPassNumber };
       } else {
-        const currentPassesInUse = sortedStudentsOnBreak.length; 
-        setAuthError(`${tRef.current.statusPassOut} (${currentPassesInUse}/${totalPasses})`);
-        speak(tRef.current.statusPassOut);
+        // Transaction បរាជ័យ (កាតពេញ ឬ សិស្សកំពុងសម្រាក)
+        const currentPassesInUse = sortedStudentsOnBreak.length;
+        const errorMsg = `${tRef.current.statusPassOut} (${currentPassesInUse}/${totalPasses})`;
+        setAuthError(errorMsg);
+        return { success: false, error: errorMsg };
       }
+
     } catch (error) {
-      setAuthError(`Check-out Error: ${error.message}`);
+      console.error('Check-out Transaction Error:', error);
+      const errorMsg = `Check-out Error: ${error.message}`;
+      setAuthError(errorMsg);
+      return { success: false, error: errorMsg };
     }
-  }, [dbWrite, students, totalPasses, speak, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch]); 
+  }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch]);
+  // !! END: កែសម្រួល HandleCheckOut !!
   
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
@@ -600,14 +624,22 @@ function App() {
   const handleSearchChange = React.useCallback((e) => { setSearchTerm(e.target.value); setSelectedStudentId(""); }, []); 
   const handleSelectStudentFromList = React.useCallback((student) => { setSearchTerm(student.name || String(student.idNumber)); setSelectedStudentId(student.id); setIsSearchFocused(false); }, []);
 
-  const handleFaceMatchSuccess = (matchedId) => {
-      const student = students.find(s => s.id === matchedId);
-      if (student) {
-          setShowFaceScanner(false);
-          handleSelectStudentFromList(student); 
-          speak(`ស្គាល់ហើយ នេះគឺជា ${student.name}`);
-      }
+  // !! START: កែសម្រួល Handler សម្រាប់ Face Scan !!
+  const handleFaceMatchSuccess = async (matchedId) => {
+    // 1. ហៅ handleCheckOut
+    const result = await handleCheckOut(matchedId);
+
+    // 2. បង្ហាញ Feedback ទៅ Modal
+    if (result.success) {
+      const message = `${result.studentName} (${t.statusPass}: ${result.passNumber})`;
+      setFaceScanFeedback({ message: message, type: 'success' });
+      speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+    } else {
+      setFaceScanFeedback({ message: result.error, type: 'error' });
+      speak(result.error);
+    }
   };
+  // !! END: កែសម្រួល Handler សម្រាប់ Face Scan !!
 
   // --- Main Render ---
   return (
@@ -696,7 +728,37 @@ function App() {
                 ) : ( !authError && <p className="text-gray-300 text-lg text-center">{t.studentNotFound}</p> )}
               </div>
               
-              {selectedStudent && (<StudentCard student={selectedStudent} pageKey="search" passesInUse={studentsOnBreakCount} attendance={attendance} now={now} handleCheckOut={handleCheckOut} handleCheckIn={handleCheckIn} handleOpenQrScanner={handleOpenQrScanner} onDeleteClick={handleOpenDeleteModal_Simple} totalPasses={totalPasses} t={t} checkInMode={checkInMode} overtimeLimit={overtimeLimit} appBranch={appBranch} />)}
+              {selectedStudent && (
+                <StudentCard 
+                  student={selectedStudent} 
+                  pageKey="search"
+                  passesInUse={studentsOnBreakCount}
+                  attendance={attendance}
+                  now={now}
+                  // !! កែសម្រួល !!: បំបែក handleCheckOut សម្រាប់ប៊ូតុង
+                  onCheckOutClick={async (studentId) => {
+                     const result = await handleCheckOut(studentId);
+                     if (result.success) {
+                       speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+                       setTimeout(() => {
+                         setSearchTerm('');
+                         setSelectedStudentId('');
+                         setIsSearchFocused(false);
+                       }, 3000);
+                     } else {
+                       speak(result.error);
+                     }
+                  }}
+                  handleCheckIn={handleCheckIn} 
+                  handleOpenQrScanner={handleOpenQrScanner}
+                  onDeleteClick={handleOpenDeleteModal_Simple}
+                  totalPasses={totalPasses}
+                  t={t}
+                  checkInMode={checkInMode}
+                  overtimeLimit={overtimeLimit} 
+                  appBranch={appBranch} 
+                />
+              )}
               {!selectedStudent && searchTerm !== "" && searchResults.length === 0 && isSearchFocused && (<p className="text-center text-white/70 text-lg mt-10">{t.studentNotFound}</p>)}
             </div>
           )}
@@ -734,12 +796,33 @@ function App() {
         </div>
         
         {/* --- MODALS --- */}
-        {modalStudent && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" onClick={() => setModalStudent(null)}><div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}><StudentCard student={modalStudent} pageKey="modal" passesInUse={studentsOnBreakCount} attendance={attendance} now={now} handleCheckOut={handleCheckOut} handleCheckIn={handleCheckIn} handleOpenQrScanner={handleOpenQrScanner} onDeleteClick={handleOpenDeleteModal_Simple} totalPasses={totalPasses} t={t} checkInMode={checkInMode} overtimeLimit={overtimeLimit} appBranch={appBranch} /><button onClick={() => setModalStudent(null)} className="absolute top-4 right-4 text-white bg-white/10 p-2 rounded-full transition-all hover:bg-white/30"><IconClose /></button></div></div>)}
+        {modalStudent && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" onClick={() => setModalStudent(null)}><div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}><StudentCard student={modalStudent} pageKey="modal" passesInUse={studentsOnBreakCount} attendance={attendance} now={now} 
+        onCheckOutClick={async (studentId) => {
+           const result = await handleCheckOut(studentId);
+           if (result.success) {
+             speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+             setTimeout(() => setModalStudent(null), 3000);
+           } else {
+             speak(result.error);
+           }
+        }}
+        handleCheckIn={handleCheckIn} handleOpenQrScanner={handleOpenQrScanner} onDeleteClick={handleOpenDeleteModal_Simple} totalPasses={totalPasses} t={t} checkInMode={checkInMode} overtimeLimit={overtimeLimit} appBranch={appBranch} /><button onClick={() => setModalStudent(null)} className="absolute top-4 right-4 text-white bg-white/10 p-2 rounded-full transition-all hover:bg-white/30"><IconClose /></button></div></div>)}
         <DeleteConfirmationModal recordToDelete={recordToDelete} onCancel={() => setRecordToDelete(null)} onConfirm={() => { handleConfirmDelete_Single(recordToDelete.record.id); setRecordToDelete(null); }} t={t} />
         <PasswordConfirmationModal prompt={passwordPrompt} onCancel={() => setPasswordPrompt({ isOpen: false })} onSubmit={handlePasswordSubmit} t={t} />
         <AdminActionModal isOpen={showAdminModal} onClose={() => setShowAdminModal(false)} onSelectClick={handleToggleSelectionMode} onBulkClick={(mode) => handleOpenBulkDelete(mode)} isBulkLoading={isBulkLoading} bulkDeleteDate={bulkDeleteDate} setBulkDeleteDate={setBulkDeleteDate} bulkDeleteMonth={bulkDeleteMonth} setBulkDeleteMonth={setBulkDeleteMonth} t={t} />
         <QrScannerModal isOpen={showQrScanner} onClose={() => setShowQrScanner(false)} onScanSuccess={handleCheckInByPassNumber} lastScannedInfo={lastScannedInfo} isScannerBusy={isScannerBusy} t={t} />
-        <FaceScannerModal isOpen={showFaceScanner} onClose={() => setShowFaceScanner(false)} onMatchFound={handleFaceMatchSuccess} faceMatcher={faceMatcher} t={t} />
+        
+        {/* !! កែសម្រួល !!: បញ្ជូន Feedback ទៅ FaceScannerModal */}
+        <FaceScannerModal 
+          isOpen={showFaceScanner} 
+          onClose={() => setShowFaceScanner(false)} 
+          onMatchFound={handleFaceMatchSuccess} 
+          faceMatcher={faceMatcher} 
+          t={t}
+          feedback={faceScanFeedback} // !! ថ្មី !!
+          clearFeedback={() => setFaceScanFeedback({ message: '', type: 'info' })} // !! ថ្មី !!
+        />
+        
         <InfoAlertModal alertInfo={infoAlert} onClose={() => setInfoAlert({ isOpen: false })} t={t} />
         <InputPromptModal promptInfo={inputPrompt} onCancel={inputPrompt.onCancel} onSubmit={inputPrompt.onSubmit} t={t} />
         
