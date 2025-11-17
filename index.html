@@ -12,7 +12,8 @@
   
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
-  <!-- !! កែសម្រួល !!: បន្ថែម runTransaction -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
@@ -22,7 +23,7 @@
     window.firebase = {
       initializeApp, getAuth, signInAnonymously, onAuthStateChanged,
       getDatabase, ref, onValue, set, push, update, query, orderByChild, equalTo, remove, get,
-      runTransaction // !! ថ្មី !!: បានបន្ថែម runTransaction នៅទីនេះ
+      runTransaction 
     };
   </script>
   <link rel="stylesheet" href="style.css">
