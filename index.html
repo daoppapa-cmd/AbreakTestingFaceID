@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>កត់ត្រាម៉ោងសម្រាក</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <!-- !! កែសម្រួល !!: បន្ថែម runTransaction -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+    import { getDatabase, ref, onValue, set, push, update, query, orderByChild, equalTo, remove, get, runTransaction } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+    
+    // Global Firebase
+    window.firebase = {
+      initializeApp, getAuth, signInAnonymously, onAuthStateChanged,
+      getDatabase, ref, onValue, set, push, update, query, orderByChild, equalTo, remove, get,
+      runTransaction // !! ថ្មី !!: បានបន្ថែម runTransaction នៅទីនេះ
+    };
+  </script>
+  <link rel="stylesheet" href="style.css">
+  
+</head>
+<body class="bg-gray-100">
+  
+  <div id="root"></div>
+
+  <script type="text/babel" src="setup.jsx"></script>
+  
+  <script type="text/babel" src="components.jsx"></script>
+  
+  <script type="text/babel" src="App.jsx"></script>
+
+  <script type="text/babel" src="settings.jsx"></script>
+  
+</body>
+</html>
