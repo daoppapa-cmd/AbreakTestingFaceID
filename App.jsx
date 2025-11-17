@@ -3,7 +3,7 @@
 // =================================================================
 function App() {
   
-  // !! ថ្មី !!: ទាញអថេរ និង Functions ពី Global Scope
+  // ទាញអថេរ និង Functions ពី Global Scope
   const {
     getTodayLocalDateString,
     getTodayLocalMonthString,
@@ -12,19 +12,20 @@ function App() {
     firebaseConfigWrite,
     translations,
     backgroundStyles,
-    passManagementPath, // !! ថ្មី !!
-    appBranch, // !! ថ្មី !!
+    passManagementPath,
+    appBranch,
     IconSearch, IconClock, IconCheckCircle, IconQrCode, IconSettings, IconTicket,
-    IconClose // !! បន្ថែម !!
+    IconClose, IconFaceId // !! ថ្មី !!: ទាញ IconFaceId
   } = window.appSetup;
 
-  // !! ថ្មី !!: ទាញ Components ពី Global Scope
+  // ទាញ Components ពី Global Scope
   const { 
     StudentCard, OnBreakStudentListCard, CompletedStudentListCard, 
     CompletedListHeader, LoadingSpinner, DeleteConfirmationModal,
     PasswordConfirmationModal, AdminActionModal, QrScannerModal,
     InfoAlertModal, InputPromptModal,
-    PaginationControls // !! ថ្មី !!: ទាញ PaginationControls
+    PaginationControls,
+    FaceScannerModal // !! ថ្មី !!: ទាញ FaceScannerModal
   } = window; 
   
   const { SettingsPage } = window; 
@@ -43,7 +44,6 @@ function App() {
   const [modalStudent, setModalStudent] = useState(null);
   const [now, setNow] = useState(new Date());
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  // const [searchResults, setSearchResults] = useState([]); // !! លុប State នេះ !!
   const [passwordPrompt, setPasswordPrompt] = useState({ isOpen: false });
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedRecords, setSelectedRecords] = useState([]);
@@ -64,18 +64,24 @@ function App() {
   const [background, setBackground] = useState(localStorage.getItem('break_bg') || 'style1');
   const [adminPassword, setAdminPassword] = useState(null); 
   const [checkInMode, setCheckInMode] = useState('scan'); 
-  const [overtimeLimit, setOvertimeLimit] = useState(15); // !! ថ្មី !!: State សម្រាប់នាទី Overtime
-  const [completedPage, setCompletedPage] = useState(0); // !! ថ្មី !!: State សម្រាប់ Pagination (0-based)
-  const [passPrefix, setPassPrefix] = useState(null); // !! ថ្មី !!: ចាប់ផ្ដើមពី null
-  const [passStartNumber, setPassStartNumber] = useState(null); // !! ថ្មី !!: ចាប់ផ្ដើមពី null
+  const [overtimeLimit, setOvertimeLimit] = useState(15); 
+  const [completedPage, setCompletedPage] = useState(0); 
+  const [passPrefix, setPassPrefix] = useState(null); 
+  const [passStartNumber, setPassStartNumber] = useState(null);
+
+  // !! ថ្មី !!: States សម្រាប់ Face Recognition
+  const [showFaceScanner, setShowFaceScanner] = useState(false);
+  const [faceMatcher, setFaceMatcher] = useState(null);
+  const [isModelsLoaded, setIsModelsLoaded] = useState(false);
+  const [processingFaces, setProcessingFaces] = useState(false);
 
   // --- Refs សម្រាប់ Stale State ---
   const t = translations[language] || translations['km'];
   const tRef = React.useRef(t); 
   const attendanceRef = React.useRef(attendance); 
-  const touchStartXRef = React.useRef(null); // !! ថ្មី !!: Ref សម្រាប់ Swipe
+  const touchStartXRef = React.useRef(null);
 
-  // !! ថ្មី !!: ទាញយក runTransaction ពី global
+  // ទាញយក runTransaction ពី global
   const { runTransaction, get, update, ref, push, remove, onValue, orderByChild, equalTo } = window.firebase;
 
   // --- មុខងារ TTS ---
@@ -115,6 +121,78 @@ function App() {
   useEffect(() => {
     attendanceRef.current = attendance;
   }, [attendance]);
+
+  // !! ថ្មី !!: 1. Load Face API Models ពេលបើកកម្មវិធី
+  useEffect(() => {
+    const loadModels = async () => {
+      // ប្រើ URL ផ្លូវការរបស់ face-api.js ឬ host ផ្ទាល់ខ្លួន
+      const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+      try {
+        console.log("Starting to load Face API models...");
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), // ប្រើ Tiny Model ដើម្បីលឿន
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
+        ]);
+        console.log("Face API Models Loaded Successfully");
+        setIsModelsLoaded(true);
+      } catch (e) {
+        console.error("Error loading face models:", e);
+      }
+    };
+    loadModels();
+  }, []);
+
+  // !! ថ្មី !!: 2. បង្កើត Face Matcher ពីទិន្នន័យសិស្ស (ពេល students update)
+  useEffect(() => {
+    if (!isModelsLoaded || students.length === 0) return;
+
+    const processStudentFaces = async () => {
+      setProcessingFaces(true);
+      const labeledDescriptors = [];
+      
+      console.log(`Processing ${students.length} students for face recognition...`);
+
+      for (const student of students) {
+        if (!student.photoUrl) continue;
+
+        try {
+            const img = document.createElement('img');
+            img.src = student.photoUrl;
+            img.crossOrigin = 'anonymous'; 
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+
+            // ប្រើ ssdMobilenetv1 សម្រាប់ភាពច្បាស់លាស់ក្នុងការ Register
+            const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+            
+            if (detection) {
+                labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
+            }
+        } catch (err) {
+           // រូបខ្លះអាចនឹងមានបញ្ហា CORS ឬរកមិនឃើញ
+        }
+      }
+
+      if (labeledDescriptors.length > 0) {
+        setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.6));
+        console.log(`Face Matcher created with ${labeledDescriptors.length} valid faces.`);
+      }
+      setProcessingFaces(false);
+    };
+
+    // ដំណើរការក្រោយ 2 វិនាទី ដើម្បីកុំឲ្យគាំង UI
+    const timer = setTimeout(() => {
+        processStudentFaces();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+
+  }, [students, isModelsLoaded]);
 
 
   // ជំហានទី 1: ដំណើរការ Firebase ទាំងពីរ
@@ -164,7 +242,6 @@ function App() {
   
   // ជំហានទី 2: ទាញទិន្នន័យ (ពី DB ផ្សេងគ្នា)
   useEffect(() => {
-    // !! ថ្មី !!: Guard Clause: រង់ចាំ dbWrite ដំណើរការសិន
     if (dbRead && dbWrite) {
       
       // 1. ទាញបញ្ជី Students (dbRead)
@@ -194,14 +271,10 @@ function App() {
           setLoading(false);
       });
 
-      // !! START: កែសម្រួល Logic ការទាញ Attendance ទាំងស្រុង !!
-
       // 2. ទាញ Settings ទាំងអស់ (Global & Branch)
-      
       const settingRef = ref(dbWrite, 'passManagement');
       const branchSettingsRef = ref(dbWrite, passManagementPath);
 
-      // 2a. ទាញ Settings (Admin Pass, Overtime, CheckInMode)
       const unsubSettings = onValue(settingRef, (snapshot) => {
         const settings = snapshot.val() || {};
         
@@ -216,10 +289,8 @@ function App() {
           setOvertimeLimit(15);
       });
 
-      // !! ថ្មី !!: អថេរសម្រាប់ផ្ទុក Unsubscribe Function របស់ Attendance
       let unsubAttendance = () => {}; 
 
-      // 2b. ទាញ Branch Settings (Total, Prefix, StartNum)
       const unsubBranchSettings = onValue(branchSettingsRef, (snapshot) => {
         const branchSettings = snapshot.val() || {};
         
@@ -233,12 +304,9 @@ function App() {
         
         console.log(`Branch "${appBranch}" settings loaded:`, branchSettings);
 
-        // !! សំខាន់ !!: 
-        // 1. បិទ (Unsubscribe) Listener ចាស់ (បើមាន)
         unsubAttendance(); 
         console.log(`Previous attendance listener detached.`);
 
-        // 2. បង្កើត Listener ថ្មី សម្រាប់ Attendance ដោយផ្អែកលើ Prefix ថ្មី
         const attendanceRefDb = ref(dbWrite, 'attendance');
         const attendanceQuery = rtdbQuery(attendanceRefDb, orderByChild('date'), equalTo(appSetup.todayString));
 
@@ -246,17 +314,11 @@ function App() {
             const attMap = {};
             const attData = attSnapshot.val();
             
-            // យក Prefix បច្ចុប្បន្ន (ព្រោះ onValue អាចនឹង Fire មុនពេល State Update)
-            // const currentPrefix = newPrefix; // !! លែងត្រូវការ !!
-
             if (attData) {
               Object.keys(attData).forEach((key) => {
                 const data = attData[key];
                 
-                // !! START: ជួសជុលកំហុស 100% !!
-                // ត្រង (Filter) យកតែ Branch របស់សាខានេះ
                 if (data.branch === appBranch) { 
-                // !! END: ជួសជុលកំហុស 100% !!
                   if (!attMap[data.studentId]) {
                     attMap[data.studentId] = []; 
                   }
@@ -277,76 +339,56 @@ function App() {
         
       }, (error) => {
           console.error(`Branch "${appBranch}" Settings Fetch Error:`, error);
-          // កំណត់ Default បើ Error
           setTotalPasses(0);
           setPassPrefix('DD_');
           setPassStartNumber(1);
       });
       
-      // 3. មុខងារ Cleanup របស់ useEffect
       return () => {
         unsubscribeStudents();
         unsubSettings();
         unsubBranchSettings();
-        unsubAttendance(); // !! សំខាន់ !!: បិទ Listener ចុងក្រោយបង្អស់
+        unsubAttendance(); 
       };
     }
-  }, [dbRead, dbWrite, appSetup.todayString, ref, onValue, orderByChild, equalTo, passManagementPath, appBranch]); // !! ថ្មី !!: យក get/update ចេញ, បន្ថែម appBranch
-  // !! END: កែសម្រួល Logic ការទាញ Attendance ទាំងស្រុង !!
+  }, [dbRead, dbWrite, appSetup.todayString, ref, onValue, orderByChild, equalTo, passManagementPath, appBranch]); 
 
 
-  // --- Data Preparation for Render ---
   const sortedStudentsOnBreak = React.useMemo(() => {
-    
-    // !! ថ្មី !!: Guard Clause - រង់ចាំ Prefix មុនពេលគណនា
     if (passPrefix === null) {
       return []; 
     }
 
-    // !! Logic នេះ ឥឡូវត្រឹមត្រូវ 100% ព្រោះ State "attendance" ត្រូវបាន Filter មុន !!
     return students
       .map(student => {
         const breaks = attendance[student.id] || [];
-        
-        // ស្វែងរក Active Break
         const activeBreak = breaks.find(r => 
           r.checkOutTime && 
           !r.checkInTime
-          // (មិនចាំបាច់ Filter Prefix នៅទីនេះទៀតទេ ព្រោះ attendance State ត្រូវបាន Filter រួចហើយ)
         );
 
         if (!activeBreak) return null; 
         const elapsedMins = calculateDuration(activeBreak.checkOutTime, now.toISOString()); 
-        // !! កែសម្រួល !!: ប្រើ State 'overtimeLimit'
         const isOvertime = elapsedMins > overtimeLimit; 
         return { student, record: activeBreak, elapsedMins, isOvertime };
       })
       .filter(Boolean) 
-      // !! START: កែសម្រួល SORT LOGIC ថ្មី !!
       .sort((a, b) => {
-        // Helper to extract number from pass "DD_03" -> 3
         const getPassNum = (passStr) => {
             if (!passStr) return 0;
-            // ប្រើ .replace ដើម្បីឲ្យ DD_03 -> 03
-            const numPart = passStr.replace(passPrefix, ''); // !! កែសម្រួល !!: ប្រើ passPrefix ពី State
+            const numPart = passStr.replace(passPrefix, ''); 
             return parseInt(numPart) || 0;
         };
         
         const passNumA = getPassNum(a.record.passNumber);
         const passNumB = getPassNum(b.record.passNumber);
-        
-        // Sort by pass number descending (ធំជាងគេនៅខាងលើ)
         return passNumB - passNumA;
       });
-      // !! END: កែសម្រួល SORT LOGIC ថ្មី !!
-
-  // !! កែសម្រួល !!: បន្ថែម overtimeLimit, passPrefix ក្នុង dependency array
   }, [students, attendance, now, calculateDuration, overtimeLimit, passPrefix]); 
 
   const allCompletedBreaks = React.useMemo(() => {
     const breaks = [];
     students.forEach(student => {
-      // !! Logic នេះ ឥឡូវត្រឹមត្រូវ 100% ព្រោះ State "attendance" ត្រូវបាន Filter មុន !!
       const studentBreaks = attendance[student.id] || [];
       studentBreaks.forEach(record => {
         if (record.checkInTime && record.checkOutTime) {
@@ -358,40 +400,32 @@ function App() {
     return breaks;
   }, [students, attendance]);
 
-  // !! ថ្មី !!: ត្រង (Filter) Completed Breaks តាមសាខា (Branch)
   const filteredCompletedBreaks = React.useMemo(() => {
-    // !! Logic នេះ លែងត្រូវការទៀតហើយ ព្រោះ allCompletedBreaks ឥឡូវត្រូវបាន Filter មុន !!
-    return allCompletedBreaks; // ប្រើដោយផ្ទាល់
+    return allCompletedBreaks; 
   }, [allCompletedBreaks]);
 
-  // !! ថ្មី !!: Logic សម្រាប់ Pagination នៃ Page 'Completed'
   const CARDS_PER_PAGE = 12;
-  // !! កែសម្រួល !!: ប្រើ filteredCompletedBreaks
   const totalCompletedPages = Math.ceil(filteredCompletedBreaks.length / CARDS_PER_PAGE);
   const paginatedCompletedBreaks = React.useMemo(() => {
     return filteredCompletedBreaks.slice(
       completedPage * CARDS_PER_PAGE,
       (completedPage + 1) * CARDS_PER_PAGE
     );
-  }, [filteredCompletedBreaks, completedPage]); // !! កែសម្រួល !!
+  }, [filteredCompletedBreaks, completedPage]); 
 
   const selectedStudent = React.useMemo(() => 
     students.find(s => s.id === selectedStudentId), 
   [students, selectedStudentId]);
   
-  // !! ថ្មី !!: នេះគឺជាកន្លែងដែលការរាប់ កំពុងប្រើ កើតឡើង
   const studentsOnBreakCount = sortedStudentsOnBreak.length;
   
-  
-  // !! ថ្មី !!: ផ្លាស់ប្តូរ Search Logic ទៅជា useMemo ដើម្បីឲ្យវា Real-time
   const searchResults = React.useMemo(() => {
     const normalizedSearch = String(searchTerm).replace(/\s+/g, '').toLowerCase();
 
-    if (normalizedSearch === "" || !isSearchFocused) { // កែសម្រួល: មិនបាច់បង្ហាញទេ បើ Search bar មិន Focus
+    if (normalizedSearch === "" || !isSearchFocused) { 
       return []; 
     }
     
-    // ប្រើ 'attendance' state ដោយផ្ទាល់ មិនបាច់ dùng Ref
     const currentAttendance = attendance; 
     const currentT = t;
       
@@ -423,12 +457,10 @@ function App() {
     
     return matchesWithStatus;
 
-  }, [searchTerm, students, attendance, t, isSearchFocused]); // !! កែសម្រួល !!: ឥឡូវវាអាស្រ័យលើ attendance និង isSearchFocused
+  }, [searchTerm, students, attendance, t, isSearchFocused]); 
 
-  // Effect សម្រាប់គ្រប់គ្រង Scanner បន្ទាប់ពី Firebase Update
   useEffect(() => {
     if (scannerTriggeredCheckIn) {
-      // !! Logic នេះ ឥឡូវត្រឹមត្រូវ 100% ព្រោះ State "attendance" ត្រូវបាន Filter មុន !!
       const newStudentsOnBreak = students
         .map(student => {
           const breaks = attendance[student.id] || [];
@@ -455,64 +487,48 @@ function App() {
   }, [attendance, scannerTriggeredCheckIn, students]);
 
 
-  // --- Helper function សម្រាប់ហៅ Alert ---
   const showAlert = React.useCallback((message, type = 'info') => {
     setInfoAlert({ isOpen: true, message, type });
   }, []);
   
-  // --- មុខងារសម្រាប់កត់ត្រា (ប្រើ dbWrite) ---
-  
-  // !! START: កែសម្រួល HandleCheckOut ទាំងស្រុង (Logic ថ្មី) !!
   const handleCheckOut = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     
-    // !! ថ្មី !!: Guard Clause - រង់ចាំ Prefix មុនពេលអនុញ្ញាត
     if (!student || !dbWrite || passPrefix === null || passStartNumber === null) {
       console.error("Check-out blocked: passPrefix or passStartNumber not loaded yet.");
       setAuthError("សូមរង់ចាំ... កំពុងទាញការកំណត់ Prefix។");
       return;
     }
     
-    // 1. កំណត់ទីតាំង Transaction (Attendance root)
     const attendanceRefDb = ref(dbWrite, 'attendance');
-    let assignedPassNumber = null; // អថេរសម្រាប់ផ្ទុកលេខកាតដែលបានកក់
+    let assignedPassNumber = null; 
 
     try {
-      // 2. ដំណើរការ Transaction
       const { committed, snapshot } = await runTransaction(attendanceRefDb, (currentAttendanceData) => {
         const attData = currentAttendanceData || {};
         
-        // 3. អានទិន្នន័យ "បច្ចុប្បន្ន" ពី Transaction
         const allBreaks = Object.values(attData);
 
-        // 4. គណនាកាតដែលកំពុងប្រើ ពីទិន្នន័យ Transaction
-        // !! START: ជួសជុលកំហុស !!
-        // ត្រូវតែត្រង (Filter) តាម Branch របស់សាខានេះ (មិនមែន Prefix)
         const usedPassNumbers = allBreaks
           .filter(r => 
             r.date === appSetup.todayString && 
             r.checkOutTime && 
             !r.checkInTime &&
-            r.branch === appBranch // !! ជួសជុលកំហុស !!: ត្រងតាម Branch
+            r.branch === appBranch 
           )
           .map(r => r.passNumber);
-        // !! END: ជួសជុលកំហុស !!
         
         const passesInUseCount = usedPassNumbers.length;
 
-        // 5. ពិនិត្យ បើកាតពេញ
         if (passesInUseCount >= totalPasses) {
-          return; // Abort Transaction
+          return; 
         }
 
-        // 6. រកលេខកាតទំនេរ
         let nextPassNumber = null;
-        // !! កែសម្រួល !!: ប្រើ passStartNumber និង totalPasses សម្រាប់ Loop
         const loopStart = passStartNumber;
         const loopEnd = loopStart + totalPasses;
 
         for (let i = loopStart; i < loopEnd; i++) {
-          // !! កែសម្រួល !!: ប្រើ passPrefix និង .padStart(2)
           const passNum = passPrefix + String(i).padStart(2, '0'); 
           if (!usedPassNumbers.includes(passNum)) {
             nextPassNumber = passNum;
@@ -522,18 +538,15 @@ function App() {
 
         if (!nextPassNumber) {
           console.error("Logic Error inside transaction: No available pass found.");
-          return; // Abort Transaction
+          return; 
         }
 
-        // 7. កក់លេខកាត (Assign pass)
         assignedPassNumber = nextPassNumber;
         
-        // 8. គណនា Break Type
         const studentBreaks = allBreaks.filter(r => r.studentId === studentId);
         const completedBreaks = studentBreaks.filter(r => r.checkInTime && r.checkOutTime);
         const newBreakType = (completedBreaks.length >= 2) ? "special" : "normal";
 
-        // 9. បង្កើត Record ថ្មី
         const newRecord = {
           studentId: studentId,
           studentName: student.name || null,
@@ -543,22 +556,18 @@ function App() {
           checkOutTime: new Date().toISOString(),
           breakType: newBreakType,
           passNumber: assignedPassNumber,
-          branch: appBranch // !! ថ្មី !!: រក្សាទុក សាខា
+          branch: appBranch 
         };
         
-        // 10. បន្ថែម Record ថ្មីទៅក្នុង Transaction
         const newKey = push(attendanceRefDb).key;
         attData[newKey] = newRecord;
 
-        return attData; // Return ទិន្នន័យថ្មី ដើម្បី Commit
+        return attData; 
       });
 
-      // 11. ពិនិត្យលទ្ធផល Transaction
       if (committed && assignedPassNumber) {
-        // Transaction បានជោគជ័យ!
         speak(`${student.name || tRef.current.noName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${assignedPassNumber}`);
         
-        // 12. បង្ហាញ Card រយៈពេល 3 វិនាទី
         setTimeout(() => {
           setSearchTerm('');
           setSelectedStudentId('');
@@ -566,10 +575,8 @@ function App() {
         }, 3000);
 
       } else {
-        // Transaction បរាជ័យ (ភាគច្រើនព្រោះកាតពេញ)
         console.log("Check-out aborted (Passes were full or transaction failed).");
-        // !! កែសម្រួល !!: បង្ហាញ passesInUseCount ដែលត្រឹមត្រូវ
-        const currentPassesInUse = sortedStudentsOnBreak.length; // ប្រើ State ដែលបានត្រងរួច
+        const currentPassesInUse = sortedStudentsOnBreak.length; 
         setAuthError(`${tRef.current.statusPassOut} (${currentPassesInUse}/${totalPasses})`);
         speak(tRef.current.statusPassOut);
       }
@@ -578,10 +585,8 @@ function App() {
       console.error('Check-out Transaction Error:', error);
       setAuthError(`Check-out Error: ${error.message}`);
     }
-  }, [dbWrite, students, totalPasses, speak, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch]); // !! ថ្មី !!: បន្ថែម passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch
-  // !! END: កែសម្រួល HandleCheckOut ទាំងស្រុង !!
+  }, [dbWrite, students, totalPasses, speak, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, appBranch]); 
   
-  // !! START: កែសម្រួល HandleCheckIn !!
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     if (!student || !dbWrite) {
@@ -589,7 +594,6 @@ function App() {
       return;
     }
     
-    // 1. ស្វែងរក Active Break ពី State (OK ព្រោះយើងគ្រាន់តែអាន)
     const studentBreaks = attendanceRef.current[student.id] || [];
     const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
     
@@ -602,22 +606,20 @@ function App() {
         
     const nowISO = new Date().toISOString();
     const docId = activeBreak.id; 
-    const docRef = ref(dbWrite, `attendance/${docId}`); // ទីតាំង Record
+    const docRef = ref(dbWrite, `attendance/${docId}`); 
 
     try {
-      // 3. Update តែ CheckInTime
       await update(docRef, { 
         checkInTime: nowISO
       }); 
       
       console.log(`Check-in update sent for ${student.name}.`);
       
-      // !! កែសម្រួល !!: យឺតពេល 3 វិនាទី តាមសំណើ
       setTimeout(() => {
         setSearchTerm(''); 
         setSelectedStudentId(''); 
         setIsSearchFocused(false); 
-      }, 3000); // 3 វិនាទី
+      }, 3000); 
       
     } catch (error) {
       console.error('Check-in Error (dbWrite):', error);
@@ -625,10 +627,7 @@ function App() {
       setIsScannerBusy(false); 
       setScannerTriggeredCheckIn(null);
     }
-  }, [dbWrite, students, speak, ref, update]); // !! Logic នេះ OK !!
-  // !! END: កែសម្រួល HandleCheckIn !!
-  
-  // --- មុខងារលុប និង Password ---
+  }, [dbWrite, students, speak, ref, update]); 
   
   const handleOpenPasswordModal = React.useCallback((message, onConfirmCallback) => {
     setPasswordPrompt({
@@ -657,23 +656,19 @@ function App() {
     }
   }, [adminPassword, passwordPrompt]);
   
-  // !! START: កែសម្រួល HandleConfirmDelete_Single !!
   const handleConfirmDelete_Single = React.useCallback(async (recordId) => {
     if (!dbWrite) return;
 
-    // លុប Record តែមួយ ដោយមិនបារម្ភពី passManagement/activePasses
-    // ព្រោះ Logic ថ្មីរបស់ handleCheckOut អានពី attendance ដោយផ្ទាល់
     const recordRef = ref(dbWrite, `attendance/${recordId}`);
 
     try {
-      await remove(recordRef); // ប្រើ remove ជំនួស update(null)
+      await remove(recordRef); 
       console.log(`Delete successful for record ${recordId}.`);
     } catch (error) {
       console.error('Delete Error (dbWrite):', error);
       setAuthError(`Delete Error: ${error.message}`);
     }
-  }, [dbWrite, ref, remove]); // !! ថ្មី !!: ប្រើ remove
-  // !! END: កែសម្រួល HandleConfirmDelete_Single !!
+  }, [dbWrite, ref, remove]); 
   
   const handleToggleSelectionMode = React.useCallback(() => {
     setIsSelectionMode(prev => !prev);
@@ -697,7 +692,6 @@ function App() {
     );
   }, [selectedRecords.length, tRef, handleOpenPasswordModal]);
 
-  // !! START: កែសម្រួល HandleConfirmDelete_Multi !!
   const handleConfirmDelete_Multi = React.useCallback(async () => {
     if (!dbWrite || selectedRecords.length === 0) return;
     
@@ -709,7 +703,6 @@ function App() {
     });
 
     try {
-      // ដំណើរការ Atomic Update
       await update(ref(dbWrite), updates);
       console.log(`Multi-delete successful for ${selectedRecords.length} records.`);
       showAlert(tRef.current.deleteSuccess(selectedRecords.length), 'success');
@@ -720,8 +713,7 @@ function App() {
     } finally {
       setIsBulkLoading(false);
     }
-  }, [dbWrite, selectedRecords, ref, update, handleToggleSelectionMode, showAlert, tRef]); // !! ថ្មី !!
-  // !! END: កែសម្រួល HandleConfirmDelete_Multi !!
+  }, [dbWrite, selectedRecords, ref, update, handleToggleSelectionMode, showAlert, tRef]); 
   
   const handleOpenBulkDelete = React.useCallback((mode) => {
     setBulkDeleteMode(mode);
@@ -736,7 +728,6 @@ function App() {
     }, 100);
   }, [bulkDeleteDate, bulkDeleteMonth, tRef, handleOpenPasswordModal]);
   
-  // !! START: កែសម្រួល HandleConfirmBulkDelete !!
   const handleConfirmBulkDelete = React.useCallback(async (mode) => {
     if (!dbWrite) return;
     setIsBulkLoading(true);
@@ -771,7 +762,6 @@ function App() {
           if (match) {
             updates[`attendance/${recordId}`] = null;
             count++;
-            // (លែងត្រូវការ Update passManagement/activePasses)
           }
         }
       });
@@ -790,9 +780,6 @@ function App() {
       setBulkDeleteMode(null);
     }
   }, [dbWrite, bulkDeleteDate, bulkDeleteMonth, tRef, showAlert, ref, get, update]);
-  // !! END: កែសម្រួល HandleConfirmBulkDelete !!
-  
-  // --- មុខងារ Settings ថ្មី ---
   
   const handleEditTotalPasses = React.useCallback(() => {
     handleOpenPasswordModal(
@@ -807,7 +794,6 @@ function App() {
           onSubmit: (newTotalString) => {
             const newTotal = parseInt(newTotalString);
             if (newTotalString && !isNaN(newTotal) && newTotal >= 0) {
-              // !! ប្រើ Path ថ្មី !!
               const passRef = ref(dbWrite, `${passManagementPath}/totalPasses`);
               set(passRef, newTotal)
                 .then(() => {
@@ -827,7 +813,6 @@ function App() {
     );
   }, [handleOpenPasswordModal, tRef, totalPasses, dbWrite, ref, set, showAlert, passManagementPath]);
   
-  // !! ថ្មី !!: មុខងារកែសម្រួល Overtime Limit
   const handleEditOvertimeLimit = React.useCallback(() => {
     handleOpenPasswordModal(
       tRef.current.passwordRequired,
@@ -860,7 +845,6 @@ function App() {
     );
   }, [handleOpenPasswordModal, tRef, overtimeLimit, dbWrite, ref, set, showAlert]);
 
-  // !! ថ្មី !!: មុខងារកែសម្រួល Pass Prefix
   const handleEditPassPrefix = React.useCallback(() => {
     handleOpenPasswordModal(
       tRef.current.passwordRequired,
@@ -873,7 +857,6 @@ function App() {
           type: 'text',
           onSubmit: (newPrefix) => {
             if (newPrefix && newPrefix.trim().length > 0) {
-              // !! ប្រើ Path ថ្មី !!
               const prefixRef = ref(dbWrite, `${passManagementPath}/passPrefix`);
               set(prefixRef, newPrefix.trim())
                 .then(() => {
@@ -891,7 +874,6 @@ function App() {
     );
   }, [handleOpenPasswordModal, tRef, passPrefix, dbWrite, ref, set, showAlert, passManagementPath]);
 
-  // !! ថ្មី !!: មុខងារកែសម្រួល Pass Start Number
   const handleEditPassStartNumber = React.useCallback(() => {
     handleOpenPasswordModal(
       tRef.current.passwordRequired,
@@ -905,7 +887,6 @@ function App() {
           onSubmit: (newStartNumString) => {
             const newStartNum = parseInt(newStartNumString);
             if (newStartNumString && !isNaN(newStartNum) && newStartNum > 0) {
-              // !! ប្រើ Path ថ្មី !!
               const startNumRef = ref(dbWrite, `${passManagementPath}/passStartNumber`);
               set(startNumRef, newStartNum)
                 .then(() => {
@@ -978,7 +959,6 @@ function App() {
       return;
     }
     
-    // !! កែសម្រួល !!: ស្វែងរក Active Break ដោយប្រើ State (OK ព្រោះ Logic ថ្មី អានពី State)
     const activeBreakData = sortedStudentsOnBreak.find(b => b.record.passNumber === passNumber);
 
     if (activeBreakData) {
@@ -994,7 +974,7 @@ function App() {
       setLastScannedInfo({ status: 'fail', message: tRef.current.scanPassNotFound(passNumber) });
     }
 
-  }, [isScannerBusy, sortedStudentsOnBreak, tRef, handleCheckIn]); // !! ថ្មី !!: ប្រើ sortedStudentsOnBreak
+  }, [isScannerBusy, sortedStudentsOnBreak, tRef, handleCheckIn]); 
   
   const handleOpenQrScanner = React.useCallback(() => {
     setLastScannedInfo(null);
@@ -1003,7 +983,6 @@ function App() {
     setShowQrScanner(true);
   }, []);
 
-  // !! ថ្មី !!: Handlers សម្រាប់ Pagination
   const handleNextPage = React.useCallback(() => {
     setCompletedPage(p => Math.min(p + 1, totalCompletedPages - 1));
   }, [totalCompletedPages]);
@@ -1012,9 +991,7 @@ function App() {
     setCompletedPage(p => Math.max(p - 1, 0));
   }, []);
 
-  // !! ថ្មី !!: Handlers សម្រាប់ Swipe
   const handleTouchStart = React.useCallback((e) => {
-    // ដំណើរការតែក្នុង Page 'completed'
     if (currentPage !== 'completed' || totalCompletedPages <= 1) return;
     touchStartXRef.current = e.touches[0].clientX;
   }, [currentPage, totalCompletedPages]);
@@ -1025,13 +1002,11 @@ function App() {
     const touchEndX = e.changedTouches[0].clientX;
     const deltaX = touchEndX - touchStartXRef.current;
     
-    // Reset ref
     touchStartXRef.current = null; 
 
-    // ពិនិត្យ Swipe
-    if (deltaX > 75) { // អូសទៅស្តាំ (មើលទំព័រមុន)
+    if (deltaX > 75) { 
       handlePrevPage();
-    } else if (deltaX < -75) { // អូសទៅឆ្វេង (មើលទំព័របន្ទាប់)
+    } else if (deltaX < -75) { 
       handleNextPage();
     }
   }, [currentPage, handlePrevPage, handleNextPage, totalCompletedPages]);
@@ -1039,21 +1014,28 @@ function App() {
   
   // --- Search Handlers ---
   
-  // !! កែសម្រួល !!: ធ្វើឲ្យ Search Handler នេះសាមញ្ញ
   const handleSearchChange = React.useCallback((e) => {
     const value = e.target.value;
     setSearchTerm(value);
     setSelectedStudentId(""); 
-    // Logic ទាំងអស់ ត្រូវបានផ្លាស់ទីទៅ useMemo
-  }, []); // មិនចាំបាច់មាន dependencies ទៀតទេ
+  }, []); 
 
 
   const handleSelectStudentFromList = React.useCallback((student) => {
     setSearchTerm(student.name || String(student.idNumber)); 
     setSelectedStudentId(student.id); 
-    // setSearchResults([]); // !! លុប !!
     setIsSearchFocused(false); 
   }, []);
+
+  // !! ថ្មី !!: Handler ពេលស្កេនមុខបានជោគជ័យ
+  const handleFaceMatchSuccess = (matchedId) => {
+      const student = students.find(s => s.id === matchedId);
+      if (student) {
+          setShowFaceScanner(false);
+          handleSelectStudentFromList(student); 
+          speak(`ស្គាល់ហើយ នេះគឺជា ${student.name}`);
+      }
+  };
 
 
   // --- Main Render ---
@@ -1074,7 +1056,6 @@ function App() {
           </div>
 
           {/* --- TABS --- */}
-          {/* !! កែសម្រួល !!: បន្ថែម setCompletedPage(0) ពេលប្តូរ Tab */}
           <div className={`w-full max-w-md mx-auto bg-white/10 backdrop-blur-sm rounded-full p-1 flex space-x-1 mb-6 transition-all duration-300 ease-in-out ${isSearchFocused ? '-translate-y-24' : 'translate-y-0'}`}>
             
             <button
@@ -1110,7 +1091,6 @@ function App() {
             >
               <span className="relative z-10 flex items-center">
                 <IconCheckCircle />
-                {/* !! កែសម្រួល !!: ប្រើ filteredCompletedBreaks.length */}
                 {filteredCompletedBreaks.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
                     {filteredCompletedBreaks.length}
@@ -1157,19 +1137,40 @@ function App() {
               <div className={`w-full max-w-md mx-auto transition-all duration-300 ease-in-out ${isSearchFocused ? '-translate-y-24' : 'mb-8'}`}>
                 {students.length > 0 ? (
                   <div className="relative">
-                    <input
-                      type="text"
-                      id="student-search"
-                      value={searchTerm}
-                      onChange={handleSearchChange}
-                      onFocus={() => { setIsSearchFocused(true); setAuthError(null); }}
-                      onBlur={() => { setTimeout(() => { if (!document.activeElement.classList.contains('search-result-button')) { setIsSearchFocused(false); } }, 200); }} // !! កែសម្រួល !!: លុប setSearchResults
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); setIsSearchFocused(false); } }}
-                      placeholder={t.searchPlaceholder} 
-                      className="block w-full px-6 py-4 bg-white/20 border border-white/30 rounded-full text-white text-lg placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white shadow-inner"
-                    />
                     
-                    {/* !! កែសម្រួល !!: លក្ខខណ្ឌ isSearchFocused ឥឡូវត្រូវបានគ្រប់គ្រងដោយ useMemo */}
+                    {/* !! ថ្មី !!: រៀបចំ Input និង Button ក្នុង Flex Container */}
+                    <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          id="student-search"
+                          value={searchTerm}
+                          onChange={handleSearchChange}
+                          onFocus={() => { setIsSearchFocused(true); setAuthError(null); }}
+                          onBlur={() => { setTimeout(() => { if (!document.activeElement.classList.contains('search-result-button')) { setIsSearchFocused(false); } }, 200); }} 
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); setIsSearchFocused(false); } }}
+                          placeholder={t.searchPlaceholder} 
+                          className="block w-full px-6 py-4 bg-white/20 border border-white/30 rounded-full text-white text-lg placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white shadow-inner"
+                        />
+
+                        {/* !! ថ្មី !!: ប៊ូតុងបើក Face Scan */}
+                        <button
+                            onClick={() => setShowFaceScanner(true)}
+                            disabled={!faceMatcher || processingFaces}
+                            className={`p-4 rounded-full shadow-lg transition-all flex-shrink-0 ${
+                                !faceMatcher || processingFaces 
+                                ? 'bg-gray-500/50 cursor-not-allowed' 
+                                : 'bg-white text-blue-800 hover:bg-blue-100'
+                            }`}
+                            title={processingFaces ? "កំពុងរៀបចំទិន្នន័យ..." : "ស្កេនមុខ"}
+                        >
+                            {processingFaces ? (
+                                <div className="w-6 h-6 border-2 border-blue-800 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <IconFaceId />
+                            )}
+                        </button>
+                    </div>
+                    
                     {searchResults.length > 0 && (
                       <div className="absolute z-10 w-full max-w-md mt-2 bg-white/90 backdrop-blur-lg rounded-2xl shadow-lg max-h-80 overflow-y-auto">
                         {searchResults.map(student => ( 
@@ -1218,11 +1219,11 @@ function App() {
                   totalPasses={totalPasses}
                   t={t}
                   checkInMode={checkInMode}
-                  overtimeLimit={overtimeLimit} // !! ថ្មី !!
-                  appBranch={appBranch} // !! ថ្មី !!: បន្ថែមសាខា
+                  overtimeLimit={overtimeLimit} 
+                  appBranch={appBranch} 
                 />
               )}
-              {/* !! កែសម្រួល !!: លក្ខខណ្ឌ isSearchFocused ឥឡូវត្រូវបានគ្រប់គ្រងដោយ useMemo */}
+              
               {!selectedStudent && searchTerm !== "" && searchResults.length === 0 && isSearchFocused && (
                 <p className="text-center text-white/70 text-lg mt-10">{t.studentNotFound}</p>
               )}
@@ -1258,7 +1259,6 @@ function App() {
           
           {/* --- PAGE 3: បានចូល --- */}
           {!loading && currentPage === 'completed' && (
-            // !! ថ្មី !!: បន្ថែម Event Handlers សម្រាប់ Swipe
             <div 
               key="completed-page" 
               className="pb-10"
@@ -1273,7 +1273,7 @@ function App() {
                 isSelectionMode={isSelectionMode}
                 t={t}
               />
-              {/* !! កែសម្រួល !!: ប្រើ filteredCompletedBreaks.length */}
+              
               {filteredCompletedBreaks.length > 0 ? (
                 paginatedCompletedBreaks.map(({ student, record }) => (
                   <CompletedStudentListCard 
@@ -1286,7 +1286,7 @@ function App() {
                     onDeleteClick={(e) => handleOpenPasswordModal(t.deleteConfirmMessage(student.name), () => handleConfirmDelete_Single(record.id))}
                     isSelectionMode={isSelectionMode}
                     t={t}
-                    overtimeLimit={overtimeLimit} // !! ថ្មី !!
+                    overtimeLimit={overtimeLimit} 
                   />
                 ))
               ) : (
@@ -1295,9 +1295,8 @@ function App() {
                 </div>
               )}
 
-              {/* !! ថ្មី !!: បន្ថែមប៊ូតុង Pagination */}
               <PaginationControls
-                currentPage={completedPage + 1} // បង្ហាញជា 1-based
+                currentPage={completedPage + 1} 
                 totalPages={totalCompletedPages}
                 onNext={handleNextPage}
                 onPrev={handlePrevPage}
@@ -1321,13 +1320,13 @@ function App() {
               passesInUse={studentsOnBreakCount}
               totalPasses={totalPasses}
               onEditTotalPasses={handleEditTotalPasses}
-              overtimeLimit={overtimeLimit} // !! ថ្មី !!
-              onEditOvertimeLimit={handleEditOvertimeLimit} // !! ថ្មី !!
-              passPrefix={passPrefix} // !! ថ្មី !!
-              onEditPassPrefix={handleEditPassPrefix} // !! ថ្មី !!
-              passStartNumber={passStartNumber} // !! ថ្មី !!
-              onEditPassStartNumber={handleEditPassStartNumber} // !! ថ្មី !!
-              appBranch={appBranch} // !! ថ្មី !!
+              overtimeLimit={overtimeLimit} 
+              onEditOvertimeLimit={handleEditOvertimeLimit} 
+              passPrefix={passPrefix} 
+              onEditPassPrefix={handleEditPassPrefix} 
+              passStartNumber={passStartNumber} 
+              onEditPassStartNumber={handleEditPassStartNumber} 
+              appBranch={appBranch} 
             />
           )}
           
@@ -1353,8 +1352,8 @@ function App() {
                 totalPasses={totalPasses}
                 t={t}
                 checkInMode={checkInMode}
-                overtimeLimit={overtimeLimit} // !! ថ្មី !!
-                appBranch={appBranch} // !! ថ្មី !!: បន្ថែមសាខា
+                overtimeLimit={overtimeLimit} 
+                appBranch={appBranch} 
               />
               <button onClick={() => setModalStudent(null)} className="absolute top-4 right-4 text-white bg-white/10 p-2 rounded-full transition-all hover:bg-white/30">
                 <IconClose />
@@ -1400,6 +1399,15 @@ function App() {
           lastScannedInfo={lastScannedInfo}
           isScannerBusy={isScannerBusy}
           t={t}
+        />
+
+        {/* !! ថ្មី !!: Face Scanner Modal */}
+        <FaceScannerModal
+            isOpen={showFaceScanner}
+            onClose={() => setShowFaceScanner(false)}
+            onMatchFound={handleFaceMatchSuccess}
+            faceMatcher={faceMatcher}
+            t={t}
         />
         
         <InfoAlertModal
