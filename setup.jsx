@@ -217,7 +217,6 @@ const IconCameraRotate = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 10h4l-2-2m-2 2l2-2m-2 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4m0 0l-2 2m2-2l-2 2m2-2H8m8 6h2a2 2 0 002-2v-4a2 2 0 00-2-2h-4a2 2 0 00-2 2v4a2 2 0 002 2h2m-4-4a2 2 0 100-4 2 2 0 000 4z"></path></svg>
 );
 
-// !! ថ្មី !!: Icon សម្រាប់ស្កេនមុខ
 const IconFaceId = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c.88 0 1.6.67 1.71 1.53L13.72 13l-.01.06a1.72 1.72 0 01-3.42 0L10.28 13l.01-.06c.11-.86.83-1.53 1.71-1.53zM7 3a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zm10 0a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zM7 21a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2zm10 0a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10a3 3 0 11-6 0 3 3 0 016 0zm12 0a3 3 0 11-6 0 3 3 0 016 0zm-6 4a5 5 0 00-5 5v1h10v-1a5 5 0 00-5-5z"></path></svg>
 );
@@ -286,12 +285,12 @@ const translations = {
     ok: 'យល់ព្រម',
     scanToComeBack: 'ស្កេនកាតចូលវិញ',
     cameraError: 'មិនអាចបើកកាមេរ៉ាបាន។',
-    cameraPermissionDenied: 'សូមអនុញ្ញាតឲ្យប្រើកាមេរ៉ា (Permission Denied)', // !! ថ្មី !!
+    cameraPermissionDenied: 'សូមអនុញ្ញាតឲ្យប្រើកាមេរ៉ា (Permission Denied)', 
     processing: 'កំពុងដំណើរការ...',
     scanned: 'ស្កេនបាន',
     scanPassNotFound: (pass) => `កាត ${pass} បានចូលវិញហើយ`,
-    flipCamera: 'ត្រឡប់កាមេរ៉ា', // !! ថ្មី !!
-    toggleMirror: 'បិទ/បើក ការបញ្ចាស់', // !! ថ្មី !!
+    flipCamera: 'ត្រឡប់កាមេរ៉ា', 
+    toggleMirror: 'បិទ/បើក ការបញ្ចាស់', 
     alertErrorTitle: 'មានបញ្ហា',
     alertSuccessTitle: 'បានជោគជ័យ',
     invalidNumber: 'សូមបញ្ចូលតែตัวเลขប៉ុណ្ណោះ។',
@@ -312,19 +311,19 @@ const translations = {
     passesInUse: 'កំពុងប្រើ',
     editPassTotal: 'កែចំនួនកាតសរុប',
     editPassTotalPrompt: 'សូមបញ្ចូលចំនួនកាតសរុបថ្មី:',
-    passPrefix: 'បុព្វបទកាត', // !! ថ្មី !!
-    editPassPrefix: 'កែបុព្វបទកាត', // !! ថ្មី !!
-    passPrefixPrompt: 'បញ្ចូលបុព្វបទថ្មី (ឧ: DD_)', // !! ថ្មី !!
-    passPrefixSuccess: 'បុព្វបទកាតបានកែប្រែ!', // !! ថ្មី !!
-    passStartNumber: 'លេខចាប់ផ្ដើម', // !! ថ្មី !!
-    editPassStartNumber: 'កែលេខចាប់ផ្ដើម', // !! ថ្មី !!
-    passStartNumberPrompt: 'បញ្ចូលលេខចាប់ផ្ដើម (ឧ: 1)', // !! ថ្មី !!
-    passStartNumberSuccess: 'លេខចាប់ផ្ដើមបានកែប្រែ!', // !! ថ្មី !!
-    settingsForBranch: 'ការកំណត់សម្រាប់សាខា', // !! ថ្មី !!
-    overtimeSettings: 'ការកំណត់លើសម៉ោង', // ថ្មី
-    overtimeLimit: 'កំណត់នាទីលើសម៉ោង', // ថ្មី
-    overtimeLimitPrompt: 'បញ្ចូលនាទី (ឧ: 15)', // ថ្មី
-    overtimeLimitSuccess: 'ការកំណត់នាទីលើសម៉ោង បានកែប្រែ!', // ថ្មី
+    passPrefix: 'បុព្វបទកាត', 
+    editPassPrefix: 'កែបុព្វបទកាត', 
+    passPrefixPrompt: 'បញ្ចូលបុព្វបទថ្មី (ឧ: DD_)', 
+    passPrefixSuccess: 'បុព្វបទកាតបានកែប្រែ!', 
+    passStartNumber: 'លេខចាប់ផ្ដើម', 
+    editPassStartNumber: 'កែលេខចាប់ផ្ដើម', 
+    passStartNumberPrompt: 'បញ្ចូលលេខចាប់ផ្ដើម (ឧ: 1)', 
+    passStartNumberSuccess: 'លេខចាប់ផ្ដើមបានកែប្រែ!', 
+    settingsForBranch: 'ការកំណត់សម្រាប់សាខា', 
+    overtimeSettings: 'ការកំណត់លើសម៉ោង', 
+    overtimeLimit: 'កំណត់នាទីលើសម៉ោង', 
+    overtimeLimitPrompt: 'បញ្ចូលនាទី (ឧ: 15)', 
+    overtimeLimitSuccess: 'ការកំណត់នាទីលើសម៉ោង បានកែប្រែ!', 
     checkInMethod: 'របៀបចូលវិញ',
     checkInMethodScan: 'ស្កេនកាត (Scan)',
     checkInMethodAuto: 'ស្វ័យប្រវត្តិ (Auto)',
@@ -332,13 +331,14 @@ const translations = {
     security: 'សុវត្ថិភាព',
     changePassword: 'ប្ដូរ Password',
     changePasswordPrompt: 'សូមបញ្ចូល Password ថ្មី (យ៉ាងតិច 6 តួ)',
-    paginationPage: 'ទំព័រ', // !! ថ្មី !!
-    // !! ថ្មី !!: Face Recognition Translations
+    paginationPage: 'ទំព័រ', 
+    // Face Recognition Translations
     faceScan: 'ស្កេនមុខ',
     loadingModels: 'កំពុងផ្ទុកទិន្នន័យមុខ...',
     faceNotMatch: 'មិនស្គាល់មុខនេះទេ',
     faceMatch: 'បានស្គាល់៖',
     noFaceDetected: 'រកមិនឃើញផ្ទៃមុខ',
+    faceMultipleDetected: 'មានមុខច្រើនពេក! (សូមยืนម្នាក់ឯង)', // !! ថ្មី !!
   },
   en: {
     appTitle: 'A-Break Time Tracker', // !! កែសម្រួលនៅទីនេះ 'A-' ឬ 'B-' !!
@@ -360,7 +360,7 @@ const translations = {
     deleteTooltip: 'Delete this record',
     minutes: 'min',
     overtime: 'Overtime',
-    overtimeExclamation: 'Overtime!', // !! ថ្មី !!
+    overtimeExclamation: 'Overtime!', 
     specialCase: 'Special Case',
     specialCaseShort: 'Special',
     noStudentsOnBreak: 'No students currently on break',
@@ -389,12 +389,12 @@ const translations = {
     ok: 'OK',
     scanToComeBack: 'Scan Card to Check In',
     cameraError: 'Could not start camera.',
-    cameraPermissionDenied: 'Please allow camera permission.', // !! ថ្មី !!
+    cameraPermissionDenied: 'Please allow camera permission.', 
     processing: 'Processing...',
     scanned: 'Scanned',
     scanPassNotFound: (pass) => `Pass ${pass} already checked in`,
-    flipCamera: 'Flip Camera', // !! ថ្មី !!
-    toggleMirror: 'Toggle Mirror', // !! ថ្មី !!
+    flipCamera: 'Flip Camera', 
+    toggleMirror: 'Toggle Mirror', 
     alertErrorTitle: 'Error',
     alertSuccessTitle: 'Success',
     invalidNumber: 'Please enter a valid number.',
@@ -415,19 +415,19 @@ const translations = {
     passesInUse: 'In Use',
     editPassTotal: 'Edit Total Passes',
     editPassTotalPrompt: 'Enter new total number of passes:',
-    passPrefix: 'Pass Prefix', // !! ថ្មី !!
-    editPassPrefix: 'Edit Pass Prefix', // !! ថ្មី !!
-    passPrefixPrompt: 'Enter new prefix (e.g., DD_)', // !! ថ្មី !!
-    passPrefixSuccess: 'Pass prefix updated!', // !! ថ្មី !!
-    passStartNumber: 'Start Number', // !! ថ្មី !!
-    editPassStartNumber: 'Edit Start Number', // !! ថ្មី !!
-    passStartNumberPrompt: 'Enter start number (e.g., 1)', // !! ថ្មី !!
-    passStartNumberSuccess: 'Start number updated!', // !! ថ្មី !!
-    settingsForBranch: 'Settings for Branch', // !! ថ្មី !!
-    overtimeSettings: 'Overtime Settings', // ថ្មី
-    overtimeLimit: 'Overtime Limit (min)', // ថ្មី
-    overtimeLimitPrompt: 'Enter limit (e.g., 15)', // ថ្មី
-    overtimeLimitSuccess: 'Overtime limit updated!', // ថ្មី
+    passPrefix: 'Pass Prefix', 
+    editPassPrefix: 'Edit Pass Prefix', 
+    passPrefixPrompt: 'Enter new prefix (e.g., DD_)', 
+    passPrefixSuccess: 'Pass prefix updated!', 
+    passStartNumber: 'Start Number', 
+    editPassStartNumber: 'Edit Start Number', 
+    passStartNumberPrompt: 'Enter start number (e.g., 1)', 
+    passStartNumberSuccess: 'Start number updated!', 
+    settingsForBranch: 'Settings for Branch', 
+    overtimeSettings: 'Overtime Settings', 
+    overtimeLimit: 'Overtime Limit (min)', 
+    overtimeLimitPrompt: 'Enter limit (e.g., 15)', 
+    overtimeLimitSuccess: 'Overtime limit updated!', 
     checkInMethod: 'Check-in Method',
     checkInMethodScan: 'Scan Card',
     checkInMethodAuto: 'Automatic',
@@ -435,13 +435,14 @@ const translations = {
     security: 'Security',
     changePassword: 'Change Password',
     changePasswordPrompt: 'Enter new password (min. 6 chars)',
-    paginationPage: 'Page', // !! ថ្មី !!
-    // !! ថ្មី !!: Face Recognition Translations
+    paginationPage: 'Page', 
+    // Face Recognition Translations
     faceScan: 'Face Scan',
     loadingModels: 'Loading face models...',
     faceNotMatch: 'Face not matched',
     faceMatch: 'Matched:',
     noFaceDetected: 'No face detected',
+    faceMultipleDetected: 'Too many faces! (Stand alone)', // !! ថ្មី !!
   }
 };
 
