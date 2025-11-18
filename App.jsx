@@ -134,26 +134,28 @@ function App() {
     loadModels();
   }, []);
 
-  // 2. បង្កើត Face Matcher (ប្រើ LocalStorage Cache)
+  // !! កែសម្រួល !!: 2. បង្កើត Face Matcher (Fix Cache Bug)
   useEffect(() => {
     if (!isModelsLoaded || students.length === 0) return;
     
-    const FACE_CACHE_KEY = `faceApiDescriptors_v${students.length}`;
+    // ប្រើ Key ថ្មី v2 ដើម្បីជៀសវាង Cache ចាស់ដែលខូច
+    const FACE_CACHE_KEY = `faceApiDescriptors_v2_${students.length}`; 
 
     const loadFaceMatcher = async () => {
       setProcessingFaces(true);
       setFaceLoadProgress(0);
 
-      // ព្យាយាមទាញពី Cache មុន
       try {
         const cachedData = localStorage.getItem(FACE_CACHE_KEY);
         if (cachedData) {
           console.log("Loading face descriptors from cache...");
           const descriptors = JSON.parse(cachedData);
+          
+          // !! កែសម្រួល !!: អានទម្រង់ Array ត្រឡប់មកវិញ
           const labeledDescriptors = descriptors.map(d => 
             new faceapi.LabeledFaceDescriptors(
-              d._label, 
-              [Float32Array.from(Object.values(d._descriptors[0]))]
+              d.label, 
+              [new Float32Array(d.descriptors)] // បំប្លែង Array ទៅ Float32Array
             )
           );
           
@@ -167,10 +169,10 @@ function App() {
         }
       } catch (e) {
          console.warn("Failed to parse face cache. Re-building.", e);
+         // លុប Cache ដែលខូចចោល
          localStorage.removeItem(FACE_CACHE_KEY); 
       }
 
-      // បើគ្មាន Cache - ចាប់ផ្ដើមបង្កើតថ្មី
       console.log("No cache found. Building new face descriptors...");
       const descriptorsToCache = [];
       const detectionOptions = new faceapi.TinyFaceDetectorOptions();
@@ -189,26 +191,39 @@ function App() {
             img.crossOrigin = 'anonymous'; 
             await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
             const detection = await faceapi.detectSingleFace(img, detectionOptions).withFaceLandmarks().withFaceDescriptor();
+            
             if (detection) {
-                descriptorsToCache.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
+                // !! កែសម្រួល !!: បំប្លែង Float32Array ទៅជា Array ធម្មតា មុនពេលរក្សាទុក
+                descriptorsToCache.push({
+                   label: student.id,
+                   descriptors: Array.from(detection.descriptor) // [0.1, -0.2, ...]
+                });
             }
         } catch (err) { /* រំលងរូបថតដែល Error */ }
       }
 
       if (descriptorsToCache.length > 0) {
         try {
+          // លុប Cache ចាស់ៗទាំងអស់
           Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('faceApiDescriptors_v')) {
+            if (key.startsWith('faceApiDescriptors_')) {
               localStorage.removeItem(key);
             }
           });
+          // រក្សាទុក Cache ថ្មី
           localStorage.setItem(FACE_CACHE_KEY, JSON.stringify(descriptorsToCache));
           console.log(`Saved ${descriptorsToCache.length} descriptors to cache.`);
+          
+          // បង្កើត FaceMatcher ពីទិន្នន័យដដែល (មិនបាច់ទាញពី Cache ម្ដងទៀត)
+          const labeledDescriptors = descriptorsToCache.map(d => 
+             new faceapi.LabeledFaceDescriptors(d.label, [new Float32Array(d.descriptors)])
+          );
+          setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.4)); // Threshold 0.4
+          console.log("Face Matcher created from new build (Threshold: 0.4).");
+
         } catch (e) {
           console.error("Failed to save to localStorage (quota exceeded?)", e);
         }
-        setFaceMatcher(new faceapi.FaceMatcher(descriptorsToCache, 0.4)); // Threshold 0.4
-        console.log("Face Matcher created from new build (Threshold: 0.4).");
       }
       
       setProcessingFaces(false);
@@ -440,7 +455,6 @@ function App() {
   // --- Action Handlers ---
   const showAlert = React.useCallback((message, type = 'info') => { setInfoAlert({ isOpen: true, message, type }); }, []);
   
-  // !! កែសម្រួល !!: handleCheckOut (Return {success, error})
   const handleCheckOut = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     
@@ -511,7 +525,6 @@ function App() {
       if (committed && assignedPassNumber) {
         return { success: true, studentName: student.name || tRef.current.noName, passNumber: assignedPassNumber };
       } else {
-        // ប្រើ attendanceRef.current ជំនួស snapshot ព្រោះ transaction អាចនឹង abort
         const studentBreaks = attendanceRef.current[studentId] || [];
         const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
         let errorMsg;
@@ -533,14 +546,12 @@ function App() {
     }
   }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, attendanceRef]);
   
-  // !! កែសម្រួល !!: handleCheckIn (Return {success, error})
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     if (!student || !dbWrite) {
         return { success: false, error: "Student or DB not found." };
     }
     
-    // ប្រើ attendanceRef.current ព្រោះ State អាចនឹងមិនទាន់ Update
     const studentBreaks = attendanceRef.current[student.id] || [];
     const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
     
@@ -553,7 +564,6 @@ function App() {
     try {
       await update(ref(dbWrite, `attendance/${activeBreak.id}`), { checkInTime: nowISO }); 
       
-      // សម្រាប់ Manual Check-in ពី Card
       setTimeout(() => { setSearchTerm(''); setSelectedStudentId(''); setIsSearchFocused(false); }, 3000); 
       
       return { success: true, studentName: student.name || tRef.current.noName };
