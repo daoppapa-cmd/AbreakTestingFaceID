@@ -88,14 +88,22 @@ function App() {
   const { runTransaction, get, update, ref, push, remove, onValue, orderByChild, equalTo } = window.firebase;
 
   // --- មុខងារ TTS ---
+  // !! កែសម្រួល !!: ធ្វើឲ្យ 'speak' អាចផ្អាកបានដោយប្រើ '...'
   const speak = React.useCallback((text) => {
     try {
       if (!window.speechSynthesis) { return; }
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'km-KH'; 
-      utterance.rate = 0.9; 
-      window.speechSynthesis.speak(utterance);
+      
+      // បំបែកពាក្យដោយ '...' ដើម្បីបង្កើតជាជួរ (Queue)
+      const parts = text.split('...').filter(p => p.trim().length > 0); 
+      
+      parts.forEach((part) => {
+          const utterance = new SpeechSynthesisUtterance(part.trim());
+          utterance.lang = 'km-KH'; 
+          utterance.rate = 0.9; 
+          window.speechSynthesis.speak(utterance);
+      });
+      
     } catch (e) { console.error(e); }
   }, []);
 
@@ -455,6 +463,7 @@ function App() {
   // --- Action Handlers ---
   const showAlert = React.useCallback((message, type = 'info') => { setInfoAlert({ isOpen: true, message, type }); }, []);
   
+  // !! កែសម្រួល !!: handleCheckOut (Return ID Number)
   const handleCheckOut = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     
@@ -523,7 +532,12 @@ function App() {
       });
 
       if (committed && assignedPassNumber) {
-        return { success: true, studentName: student.name || tRef.current.noName, passNumber: assignedPassNumber };
+        return { 
+          success: true, 
+          studentName: student.name || tRef.current.noName, 
+          passNumber: assignedPassNumber,
+          studentIdNumber: student.idNumber || 'N/A' // !! ថ្មី !!: បញ្ជូន ID Number
+        };
       } else {
         const studentBreaks = attendanceRef.current[studentId] || [];
         const activeBreak = studentBreaks.find(r => r.checkOutTime && !r.checkInTime);
@@ -546,6 +560,7 @@ function App() {
     }
   }, [dbWrite, students, totalPasses, ref, push, runTransaction, appSetup.todayString, tRef, passPrefix, passStartNumber, sortedStudentsOnBreak.length, attendanceRef]);
   
+  // !! កែសម្រួល !!: handleCheckIn (Return ID Number)
   const handleCheckIn = React.useCallback(async (studentId) => {
     const student = students.find(s => s.id === studentId);
     if (!student || !dbWrite) {
@@ -566,7 +581,11 @@ function App() {
       
       setTimeout(() => { setSearchTerm(''); setSelectedStudentId(''); setIsSearchFocused(false); }, 3000); 
       
-      return { success: true, studentName: student.name || tRef.current.noName };
+      return { 
+        success: true, 
+        studentName: student.name || tRef.current.noName,
+        studentIdNumber: student.idNumber || 'N/A' // !! ថ្មី !!: បញ្ជូន ID Number
+      };
 
     } catch (error) {
       console.error('Check-in Error (dbWrite):', error);
@@ -683,24 +702,28 @@ function App() {
     setFaceScanFeedback({ message: '', type: 'info' });
   }, []); 
 
+  // !! កែសម្រួល !!: ហៅ Speak ជាមួយ ID Number និងពាក្យថ្មី
   const onFaceMatchFound_CheckOut = React.useCallback(async (matchedId) => {
     const result = await handleCheckOut(matchedId);
     if (result.success) {
       const message = `${result.studentName} (${tRef.current.statusPass}: ${result.passNumber})`;
       setFaceScanFeedback({ message: message, type: 'success' });
-      speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+      // ហៅ Speak ជាមួយ ID និងពាក្យថ្មី + ចន្លោះផ្អាក '...'
+      speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckOut}`);
     } else {
       setFaceScanFeedback({ message: result.error, type: 'error' });
       speak(result.error);
     }
   }, [handleCheckOut, speak, tRef]);
 
+  // !! កែសម្រួល !!: ហៅ Speak ជាមួយ ID Number និងពាក្យថ្មី
   const onFaceMatchFound_CheckIn = React.useCallback(async (matchedId) => {
     const result = await handleCheckIn(matchedId);
     if (result.success) {
       const message = `${result.studentName} (${tRef.current.faceCheckInSuccess})`;
       setFaceScanFeedback({ message: message, type: 'success' });
-      speak(`${result.studentName} ${tRef.current.checkIn}`);
+      // ហៅ Speak ជាមួយ ID និងពាក្យថ្មី + ចន្លោះផ្អាក '...'
+      speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckIn}`);
     } else {
       setFaceScanFeedback({ message: result.error, type: 'error' });
       speak(result.error);
@@ -811,7 +834,7 @@ function App() {
                   onCheckOutClick={async (studentId) => { 
                      const result = await handleCheckOut(studentId);
                      if (result.success) {
-                       speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+                       speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckOut}`); // !! កែសម្រួល !!
                        setTimeout(() => {
                          setSearchTerm('');
                          setSelectedStudentId('');
@@ -821,10 +844,10 @@ function App() {
                        speak(result.error);
                      }
                   }}
-                  handleCheckIn={async (studentId) => { // កែ handleCheckIn ធម្មតាផង
+                  handleCheckIn={async (studentId) => { 
                       const result = await handleCheckIn(studentId);
                       if (result.success) {
-                          speak(`${result.studentName} ${tRef.current.checkIn}`);
+                          speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckIn}`); // !! កែសម្រួល !!
                       } else {
                           speak(result.error);
                       }
@@ -848,10 +871,10 @@ function App() {
               {sortedStudentsOnBreak.length > 0 ? (
                 sortedStudentsOnBreak.map(({ student, record, elapsedMins, isOvertime }) => (
                   <OnBreakStudentListCard key={record.id} student={student} record={record} elapsedMins={elapsedMins} isOvertime={isOvertime} 
-                    onCheckIn={async () => { // កែ onCheckIn នៅទីនេះផង
+                    onCheckIn={async () => { 
                          const result = await handleCheckIn(student.id);
                          if (result.success) {
-                             speak(`${result.studentName} ${tRef.current.checkIn}`);
+                             speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckIn}`); // !! កែសម្រួល !!
                          } else {
                              speak(result.error);
                          }
@@ -891,7 +914,7 @@ function App() {
         onCheckOutClick={async (studentId) => {
            const result = await handleCheckOut(studentId);
            if (result.success) {
-             speak(`${result.studentName} ${tRef.current.statusOnBreak} ${tRef.current.statusPass} ${result.passNumber}`);
+             speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckOut}`); // !! កែសម្រួល !!
              setTimeout(() => setModalStudent(null), 3000);
            } else {
              speak(result.error);
@@ -900,7 +923,7 @@ function App() {
         handleCheckIn={async (studentId) => {
              const result = await handleCheckIn(studentId);
              if (result.success) {
-                 speak(`${result.studentName} ${tRef.current.checkIn}`);
+                 speak(`${tRef.current.idNumber} ${result.studentIdNumber} ... ${tRef.current.faceSpeakCheckIn}`); // !! កែសម្រួល !!
              } else {
                  speak(result.error);
              }
