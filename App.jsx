@@ -111,7 +111,7 @@ function App() {
   useEffect(() => { localStorage.setItem('break_bg', background); }, [background]);
   useEffect(() => { attendanceRef.current = attendance; }, [attendance]);
 
-  // 1. Load Face API Models
+  // !! កែសម្រួល !!: 1. Load Face API Models (បន្ថែម SsdMobilenetv1)
   useEffect(() => {
     const loadModels = async () => {
       const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
@@ -119,6 +119,7 @@ function App() {
         console.log("Starting to load Face API models...");
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), 
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL), // !! ថ្មី !!: Load Model ធំ
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
@@ -131,18 +132,16 @@ function App() {
     loadModels();
   }, []);
 
-  // !! START: កែសម្រួល 2. បង្កើត Face Matcher (ប្រើ LocalStorage Cache) !!
+  // 2. បង្កើត Face Matcher (ប្រើ LocalStorage Cache)
   useEffect(() => {
     if (!isModelsLoaded || students.length === 0) return;
     
-    // 1. បង្កើត Key សម្រាប់ Cache ដោយផ្អែកលើចំនួនសិស្ស
     const FACE_CACHE_KEY = `faceApiDescriptors_v${students.length}`;
 
     const loadFaceMatcher = async () => {
       setProcessingFaces(true);
       setFaceLoadProgress(0);
 
-      // 2. ព្យាយាមទាញពី Cache មុន
       try {
         const cachedData = localStorage.getItem(FACE_CACHE_KEY);
         if (cachedData) {
@@ -156,12 +155,11 @@ function App() {
           );
           
           if (labeledDescriptors.length > 0) {
-             // !! កែសម្រួល !!: បង្កើនភាពច្បាស់លាស់ ទៅ 0.4 (តឹងរ៉ឹងជាងមុន)
              setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.4));
              console.log("Face Matcher created from cache (Threshold: 0.4).");
              setProcessingFaces(false);
              setFaceLoadProgress(100);
-             return; // ចប់! (លឿន)
+             return; 
           }
         }
       } catch (e) {
@@ -169,7 +167,6 @@ function App() {
          localStorage.removeItem(FACE_CACHE_KEY); 
       }
 
-      // 3. បើគ្មាន Cache (ឬ Cache ខូច) - ចាប់ផ្ដើមបង្កើតថ្មី (យឺត)
       console.log("No cache found. Building new face descriptors...");
       const descriptorsToCache = [];
       const detectionOptions = new faceapi.TinyFaceDetectorOptions();
@@ -194,7 +191,6 @@ function App() {
         } catch (err) { /* រំលងរូបថតដែល Error */ }
       }
 
-      // 4. បង្កើត Matcher និង រក្សាទុកក្នុង Cache
       if (descriptorsToCache.length > 0) {
         try {
           Object.keys(localStorage).forEach(key => {
@@ -207,7 +203,6 @@ function App() {
         } catch (e) {
           console.error("Failed to save to localStorage (quota exceeded?)", e);
         }
-        // !! កែសម្រួល !!: បង្កើនភាពច្បាស់លាស់ ទៅ 0.4 (តឹងរ៉ឹងជាងមុន)
         setFaceMatcher(new faceapi.FaceMatcher(descriptorsToCache, 0.4));
         console.log("Face Matcher created from new build (Threshold: 0.4).");
       }
@@ -219,8 +214,7 @@ function App() {
     const timer = setTimeout(loadFaceMatcher, 1000);
     return () => clearTimeout(timer);
 
-  }, [students, isModelsLoaded]); // អាស្រ័យលើ students និង isModelsLoaded
-  // !! END: កែសម្រួល Face Matcher !!
+  }, [students, isModelsLoaded]);
 
 
   // ជំហានទី 1: ដំណើរការ Firebase
