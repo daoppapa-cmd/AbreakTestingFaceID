@@ -215,10 +215,14 @@ const IconType = ({ className = "w-6 h-6" }) => (
 
 const IconCameraRotate = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 10h4l-2-2m-2 2l2-2m-2 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4m0 0l-2 2m2-2l-2 2m2-2H8m8 6h2a2 2 0 002-2v-4a2 2 0 00-2-2h-4a2 2 0 00-2 2v4a2 2 0 002 2h2m-4-4a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-);
-
+Services
 const IconFaceId = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c.88 0 1.6.67 1.71 1.53L13.72 13l-.01.06a1.72 1.72 0 01-3.42 0L10.28 13l.01-.06c.11-.86.83-1.53 1.71-1.53zM7 3a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zm10 0a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zM7 21a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2zm10 0a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10a3 3 0 11-6 0 3 3 0 016 0zm12 0a3 3 0 11-6 0 3 3 0 016 0zm-6 4a5 5 0 00-5 5v1h10v-1a5 5 0 00-5-5z"></path></svg>
+);
+
+// !! ថ្មី !!: Icon សម្រាប់ Zoom (Distance Mode)
+const IconZoomIn = ({ className = "w-6 h-6" }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
 );
 
 
@@ -256,7 +260,7 @@ const translations = {
     deleteTooltip: 'លុបទិន្នន័យនេះ',
     minutes: 'នាទី',
     overtime: 'លើស',
-    overtimeExclamation: 'លើសម៉ោង!', // !! ថ្មី !!
+    overtimeExclamation: 'លើសម៉ោង!', 
     specialCase: 'ករណីពិសេស',
     specialCaseShort: 'ពិសេស',
     noStudentsOnBreak: 'មិនមាននិស្សិតកំពុងសម្រាកទេ',
@@ -338,7 +342,9 @@ const translations = {
     faceNotMatch: 'មិនស្គាល់មុខនេះទេ',
     faceMatch: 'បានស្គាល់៖',
     noFaceDetected: 'រកមិនឃើញផ្ទៃមុខ',
-    faceMultipleDetected: 'មានមុខច្រើនពេក! (សូមยืนម្នាក់ឯង)', // !! ថ្មី !!
+    faceMultipleDetected: 'មានមុខច្រើនពេក! (សូមยืนម្នាក់ឯង)', 
+    faceScanDistance: 'របៀបស្កេនចម្ងាយ (យឺត)', // !! ថ្មី !!
+    faceScanNormal: 'របៀបស្កេនជិត (លឿន)', // !! ថ្មី !!
   },
   en: {
     appTitle: 'A-Break Time Tracker', // !! កែសម្រួលនៅទីនេះ 'A-' ឬ 'B-' !!
@@ -442,7 +448,9 @@ const translations = {
     faceNotMatch: 'Face not matched',
     faceMatch: 'Matched:',
     noFaceDetected: 'No face detected',
-    faceMultipleDetected: 'Too many faces! (Stand alone)', // !! ថ្មី !!
+    faceMultipleDetected: 'Too many faces! (Stand alone)', 
+    faceScanDistance: 'Distance Scan Mode (Slower)', // !! ថ្មី !!
+    faceScanNormal: 'Normal Scan Mode (Faster)', // !! ថ្មី !!
   }
 };
 
@@ -515,5 +523,6 @@ window.appSetup = {
   IconHash,
   IconType,
   IconCameraRotate,
-  IconFaceId, // !! ថ្មី !!
+  IconFaceId,
+  IconZoomIn, // !! ថ្មី !!
 };
