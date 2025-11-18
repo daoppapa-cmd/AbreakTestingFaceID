@@ -342,7 +342,7 @@ const translations = {
     faceNotMatch: 'មិនស្គាល់មុខនេះទេ',
     faceMatch: 'បានស្គាល់៖',
     noFaceDetected: 'រកមិនឃើញផ្ទៃមុខ',
-    faceMultipleDetected: 'មានមុខច្រើនពេក! (សូមยืนម្នាក់ឯង)', 
+    faceMultipleDetected: 'មានមុខច្រើនពេក! (សូមឈរមុខកាំមេរ៉ាម្នាក់ឯង)', 
     faceScanDistance: 'របៀបស្កេនចម្ងាយ (យឺត)', 
     faceScanNormal: 'របៀបស្កេនជិត (លឿន)', 
     faceScanModeCheckIn: 'របៀប៖ ស្កេនចូល',
