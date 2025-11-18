@@ -12,12 +12,12 @@ const {
   IconArrowLeft, IconArrowRight, 
   IconCameraRotate, 
   IconToggleLeft, IconToggleRight,
-  IconFaceId
+  IconFaceId,
+  IconZoomIn // !! ថ្មី !!: ទាញ IconZoomIn
 } = window.appSetup;
 
 const { useState, useEffect, useRef } = React;
 
-// ... (window.StudentCard ដូចដើម) ...
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
   onCheckOutClick,
@@ -734,7 +734,7 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
   );
 };
 
-// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror Button) !!
+// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror + Distance Mode) !!
 window.FaceScannerModal = ({ 
     isOpen, onClose, onMatchFound, faceMatcher, t,
     feedback,
@@ -747,11 +747,11 @@ window.FaceScannerModal = ({
   const intervalRef = useRef(null); 
   const [isBusy, setIsBusy] = useState(false); 
   
-  // !! ថ្មី !!: State សម្រាប់ Mirror
-  const [isMirrored, setIsMirrored] = useState(true); // Default គឺ បញ្ចាស់ (scaleX(-1))
+  const [isMirrored, setIsMirrored] = useState(true); 
+  const [isDistanceMode, setIsDistanceMode] = useState(false); // Default ស្កេនជិត
 
   // Function សម្រាប់ចាប់ផ្ដើមស្កេន
-  const startScanInterval = () => {
+  const startScanInterval = (options, currentT) => { 
     if (intervalRef.current) clearInterval(intervalRef.current); 
     if (!videoRef.current || !canvasRef.current || !faceMatcher) return;
 
@@ -766,7 +766,7 @@ window.FaceScannerModal = ({
     intervalRef.current = setInterval(async () => {
       if (!video || !canvas || video.paused || video.ended || isBusy) return;
 
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+      const detections = await faceapi.detectAllFaces(video, options) 
         .withFaceLandmarks()
         .withFaceDescriptors();
 
@@ -775,26 +775,38 @@ window.FaceScannerModal = ({
       const context = canvas.getContext('2d');
       context.clearRect(0, 0, canvas.width, canvas.height);
       
-      if (detections.length > 0) {
-        detections.forEach(detection => {
-          const match = faceMatcher.findBestMatch(detection.descriptor);
-          const label = match.toString();
-          const drawBox = new faceapi.draw.DrawBox(detection.detection.box, { label: label });
-          drawBox.draw(canvas);
+      if (detections.length === 1) { 
+        const detection = detections[0];
+        const match = faceMatcher.findBestMatch(detection.descriptor);
+        
+        const label = match.label === 'unknown' ? currentT.faceNotMatch : match.toString();
+        const drawBox = new faceapi.draw.DrawBox(detection.detection.box, { label: label });
+        drawBox.draw(canvas);
 
-          if (match.label !== 'unknown' && !isBusy) {
-             setIsBusy(true); 
-             if (intervalRef.current) clearInterval(intervalRef.current);
-             onMatchFound(match.label); 
-          }
-        });
-      } else {
+        if (match.label !== 'unknown' && !isBusy) {
+           setIsBusy(true); 
+           if (intervalRef.current) clearInterval(intervalRef.current);
+           onMatchFound(match.label); 
+        } else if (match.label === 'unknown' && !feedback.message) {
+            setDetectionStatus(currentT.faceNotMatch); 
+        }
+
+      } else if (detections.length > 1) { 
           if (!feedback.message) {
-            setDetectionStatus(t.noFaceDetected); 
+            setDetectionStatus(currentT.faceMultipleDetected); 
+          }
+          resizedDetections.forEach(det => {
+            const drawBox = new faceapi.draw.DrawBox(det.detection.box, { label: '???' });
+            drawBox.draw(canvas);
+          });
+      
+      } else { 
+          if (!feedback.message) {
+            setDetectionStatus(currentT.noFaceDetected); 
           }
       }
 
-    }, 300); 
+    }, 300); // ពិនិត្យរៀងរាល់ 300ms
   };
 
   // Effect ទី 1: បើក/បិទ កាមេរ៉ា
@@ -829,7 +841,7 @@ window.FaceScannerModal = ({
       setDetectionStatus(t.loadingModels); 
       clearFeedback(); 
       setIsBusy(false); 
-      // setIsMirrored(true); // Reset ទៅ Default ពេលបិទ (Optional)
+      // setIsDistanceMode(false); // Reset Zoom ពេលបិទ (Optional)
     };
 
     if (isOpen) {
@@ -840,11 +852,18 @@ window.FaceScannerModal = ({
     return () => { stopVideo(); };
   }, [isOpen, t, clearFeedback]);
 
-  // Effect ទី 2: ចាប់ផ្ដើម Interval ពេល Video Play និង faceMatcher រួចរាល់
+  // Effect ទី 2: ចាប់ផ្ដើម Interval ពេល Video Play, faceMatcher, isBusy, isDistanceMode, t
   useEffect(() => {
     if (isOpen && isVideoPlaying && faceMatcher && !isBusy) {
-      setDetectionStatus(t.processing); 
-      startScanInterval(); 
+      // កំណត់ Options ផ្អែកលើ State
+      const detectionOptions = isDistanceMode 
+        ? new faceapi.SsdMobilenetv1Options() // ស្កេនចម្ងាយ (យឺត)
+        : new faceapi.TinyFaceDetectorOptions(); // ស្កេនជិត (លឿន)
+      
+      setDetectionStatus(isDistanceMode ? t.faceScanDistance : t.faceScanNormal);
+      
+      startScanInterval(detectionOptions, t); 
+      
     } else if (isOpen && isVideoPlaying && !faceMatcher) {
       setDetectionStatus(t.loadingModels);
     }
@@ -852,7 +871,7 @@ window.FaceScannerModal = ({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isOpen, isVideoPlaying, faceMatcher, isBusy]); // អាស្រ័យលើ isBusy ដែរ
+  }, [isOpen, isVideoPlaying, faceMatcher, isBusy, isDistanceMode, t]); // បន្ថែម isDistanceMode, t
 
   // Effect ទី 3: គ្រប់គ្រង Feedback
   useEffect(() => {
@@ -863,7 +882,7 @@ window.FaceScannerModal = ({
       const timer = setTimeout(() => {
         clearFeedback();
         setIsBusy(false);
-      }, 3000); 
+      }, 3000); // រង់ចាំ 3 វិនាទី
 
       return () => clearTimeout(timer);
     }
@@ -874,9 +893,12 @@ window.FaceScannerModal = ({
     setIsVideoPlaying(true); 
   };
 
-  // !! ថ្មី !!: Function សម្រាប់ប្តូរ Mirror
   const handleToggleMirror = () => {
     setIsMirrored(prev => !prev);
+  };
+  
+  const handleToggleDistanceMode = () => {
+    setIsDistanceMode(prev => !prev);
   };
 
   if (!isOpen) return null;
@@ -884,7 +906,6 @@ window.FaceScannerModal = ({
   const feedbackColor = feedback.type === 'success' ? 'text-green-600 animate-pulse' : 'text-red-600';
   const currentStatus = feedback.message ? feedback.message : detectionStatus;
   
-  // !! ថ្មី !!: កំណត់ Style សម្រាប់ Mirror
   const videoStyle = {
     transform: isMirrored ? 'scaleX(-1)' : 'scaleX(1)'
   };
@@ -896,13 +917,21 @@ window.FaceScannerModal = ({
           <window.appSetup.IconClose />
         </button>
         
-        {/* !! ថ្មី !!: ប៊ូតុងបិទ/បើក Mirror */}
         <button
           onClick={handleToggleMirror}
           className="absolute top-4 left-4 text-gray-800 bg-gray-200 p-2 rounded-full z-20"
           title={t.toggleMirror}
         >
           {isMirrored ? <IconToggleRight className="w-6 h-6" /> : <IconToggleLeft className="w-6 h-6" />}
+        </button>
+        
+        {/* !! ថ្មី !!: ប៊ូតុង Zoom (Distance Mode) */}
+        <button
+          onClick={handleToggleDistanceMode}
+          className={`absolute top-16 left-4 text-gray-800 p-2 rounded-full z-20 ${isDistanceMode ? 'bg-blue-400 text-white' : 'bg-gray-200'}`}
+          title={isDistanceMode ? t.faceScanDistance : t.faceScanNormal}
+        >
+          <window.appSetup.IconZoomIn className="w-6 h-6" />
         </button>
         
         <div className="relative flex justify-center bg-black rounded-xl overflow-hidden mt-10 mb-4">
@@ -913,12 +942,12 @@ window.FaceScannerModal = ({
                 playsInline 
                 onPlay={handleVideoPlay}
                 className="w-full h-auto object-cover"
-                style={videoStyle} // !! ថ្មី !!: ប្រើ Style
+                style={videoStyle} 
             />
             <canvas 
                 ref={canvasRef} 
                 className="absolute top-0 left-0 w-full h-full" 
-                style={videoStyle} // !! ថ្មី !!: ប្រើ Style
+                style={videoStyle} 
             />
         </div>
 
