@@ -148,18 +148,17 @@ function App() {
         if (cachedData) {
           console.log("Loading face descriptors from cache...");
           const descriptors = JSON.parse(cachedData);
-          // បំលែង JSON ធម្មតា ទៅជា LabeledFaceDescriptors
           const labeledDescriptors = descriptors.map(d => 
             new faceapi.LabeledFaceDescriptors(
               d._label, 
-              // បំលែង Object {0: 1.2, 1: 3.4} ទៅជា Float32Array
               [Float32Array.from(Object.values(d._descriptors[0]))]
             )
           );
           
           if (labeledDescriptors.length > 0) {
-             setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.5));
-             console.log("Face Matcher created from cache.");
+             // !! កែសម្រួល !!: បង្កើនភាពច្បាស់លាស់ ទៅ 0.4 (តឹងរ៉ឹងជាងមុន)
+             setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.4));
+             console.log("Face Matcher created from cache (Threshold: 0.4).");
              setProcessingFaces(false);
              setFaceLoadProgress(100);
              return; // ចប់! (លឿន)
@@ -167,7 +166,7 @@ function App() {
         }
       } catch (e) {
          console.warn("Failed to parse face cache. Re-building.", e);
-         localStorage.removeItem(FACE_CACHE_KEY); // បើ Cache ខូច សូមលុបចោល
+         localStorage.removeItem(FACE_CACHE_KEY); 
       }
 
       // 3. បើគ្មាន Cache (ឬ Cache ខូច) - ចាប់ផ្ដើមបង្កើតថ្មី (យឺត)
@@ -190,7 +189,6 @@ function App() {
             await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
             const detection = await faceapi.detectSingleFace(img, detectionOptions).withFaceLandmarks().withFaceDescriptor();
             if (detection) {
-                // ត្រូវតែបង្កើត LabeledFaceDescriptors ភ្លាមៗ ព្រោះ JSON.stringify ត្រូវការ Object នេះ
                 descriptorsToCache.push(new faceapi.LabeledFaceDescriptors(student.id, [detection.descriptor]));
             }
         } catch (err) { /* រំលងរូបថតដែល Error */ }
@@ -199,20 +197,19 @@ function App() {
       // 4. បង្កើត Matcher និង រក្សាទុកក្នុង Cache
       if (descriptorsToCache.length > 0) {
         try {
-          // សម្អាត Cache ចាស់ៗ (បើមាន)
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith('faceApiDescriptors_v')) {
               localStorage.removeItem(key);
             }
           });
-          // រក្សាទុក Cache ថ្មី
           localStorage.setItem(FACE_CACHE_KEY, JSON.stringify(descriptorsToCache));
           console.log(`Saved ${descriptorsToCache.length} descriptors to cache.`);
         } catch (e) {
           console.error("Failed to save to localStorage (quota exceeded?)", e);
         }
-        // បញ្ជូនទៅ State សម្រាប់ប្រើ session នេះ
-        setFaceMatcher(new faceapi.FaceMatcher(descriptorsToCache, 0.5));
+        // !! កែសម្រួល !!: បង្កើនភាពច្បាស់លាស់ ទៅ 0.4 (តឹងរ៉ឹងជាងមុន)
+        setFaceMatcher(new faceapi.FaceMatcher(descriptorsToCache, 0.4));
+        console.log("Face Matcher created from new build (Threshold: 0.4).");
       }
       
       setProcessingFaces(false);
@@ -843,7 +840,6 @@ function App() {
         <AdminActionModal isOpen={showAdminModal} onClose={() => setShowAdminModal(false)} onSelectClick={handleToggleSelectionMode} onBulkClick={(mode) => handleOpenBulkDelete(mode)} isBulkLoading={isBulkLoading} bulkDeleteDate={bulkDeleteDate} setBulkDeleteDate={setBulkDeleteDate} bulkDeleteMonth={bulkDeleteMonth} setBulkDeleteMonth={setBulkDeleteMonth} t={t} />
         <QrScannerModal isOpen={showQrScanner} onClose={() => setShowQrScanner(false)} onScanSuccess={handleCheckInByPassNumber} lastScannedInfo={lastScannedInfo} isScannerBusy={isScannerBusy} t={t} />
         
-        {/* !! កែសម្រួល !!: បញ្ជូន Function ដែលបាន Memoized ទៅ Modal */}
         <FaceScannerModal 
           isOpen={showFaceScanner} 
           onClose={() => setShowFaceScanner(false)} 
