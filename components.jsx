@@ -17,11 +17,10 @@ const {
 
 const { useState, useEffect, useRef } = React;
 
-// !! START: កែសម្រួល StudentCard !!
+// ... (window.StudentCard ដូចដើម) ...
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
-  // handleCheckOut, // !! លុប !!
-  onCheckOutClick, // !! ថ្មី !!: ប្រើ Prop នេះជំនួស
+  onCheckOutClick,
   handleCheckIn, 
   handleOpenQrScanner, 
   onDeleteClick, 
@@ -167,7 +166,6 @@ window.StudentCard = ({
               {isSpecialCase && <IconSpecial />}
             </p>
             
-            {/* !! កែសម្រួល !!: ប្រើ onCheckOutClick */}
             {canCheckOut && (
               <button
                 onClick={() => onCheckOutClick(student.id)}
@@ -178,7 +176,6 @@ window.StudentCard = ({
               </button>
             )}
             
-            {/* Pass Out Warning (បើអស់កាត) */}
             {!canCheckOut && statusText.startsWith(t.statusPassOut) && (
               <div className="flex items-center justify-center p-4 rounded-full text-lg text-white font-bold bg-red-600/50 opacity-80 cursor-not-allowed">
                 <IconNoSymbol />
@@ -191,8 +188,6 @@ window.StudentCard = ({
     </div>
   );
 };
-// !! END: កែសម្រួល StudentCard !!
-
 window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSelect, onDeleteClick, isSelectionMode, t, overtimeLimit }) => {
   
   const formatTime = (isoString) => {
@@ -644,10 +639,8 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
         if (videoElement) {
           if (facingMode === 'user') {
             videoElement.style.setProperty('transform', isMirrored ? 'scaleX(-1)' : 'scaleX(1)', 'important');
-            console.log(`Front camera mirror set to: ${isMirrored}`);
           } else {
             videoElement.style.setProperty('transform', 'scaleX(1)', 'important');
-            console.log('Back camera forced to non-mirror.');
           }
         }
       } catch (e) {
@@ -741,35 +734,36 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
   );
 };
 
-// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode) !!
+// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror Button) !!
 window.FaceScannerModal = ({ 
     isOpen, onClose, onMatchFound, faceMatcher, t,
-    feedback, // !! ថ្មី !!
-    clearFeedback // !! ថ្មី !!
+    feedback,
+    clearFeedback 
 }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState(t.loadingModels);
   const intervalRef = useRef(null); 
-  const [isBusy, setIsBusy] = useState(false); // State សម្រាប់ការពារការស្កេនជាន់គ្នា
+  const [isBusy, setIsBusy] = useState(false); 
+  
+  // !! ថ្មី !!: State សម្រាប់ Mirror
+  const [isMirrored, setIsMirrored] = useState(true); // Default គឺ បញ្ចាស់ (scaleX(-1))
 
   // Function សម្រាប់ចាប់ផ្ដើមស្កេន
   const startScanInterval = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current); // សម្អាត interval ចាស់
+    if (intervalRef.current) clearInterval(intervalRef.current); 
     if (!videoRef.current || !canvasRef.current || !faceMatcher) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    // !! ជួសជុល !!: ប្រើ videoWidth/videoHeight ធានាថា Video បើកហើយ
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
     if (displaySize.width === 0 || displaySize.height === 0) return;
 
     faceapi.matchDimensions(canvas, displaySize);
 
     intervalRef.current = setInterval(async () => {
-      // !! ជួសជុល !!: បន្ថែម !isBusy ក្នុង Check នេះ
       if (!video || !canvas || video.paused || video.ended || isBusy) return;
 
       const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
@@ -789,19 +783,18 @@ window.FaceScannerModal = ({
           drawBox.draw(canvas);
 
           if (match.label !== 'unknown' && !isBusy) {
-             setIsBusy(true); // !! ចាក់សោ !!
+             setIsBusy(true); 
              if (intervalRef.current) clearInterval(intervalRef.current);
-             onMatchFound(match.label); // ហៅ App.jsx handleCheckOut
+             onMatchFound(match.label); 
           }
         });
       } else {
-          // !! កែសម្រួល !!: បង្ហាញតែពេល Feedback ទំនេរ
           if (!feedback.message) {
             setDetectionStatus(t.noFaceDetected); 
           }
       }
 
-    }, 300); // ស្កេនរៀងរាល់ 300ms
+    }, 300); 
   };
 
   // Effect ទី 1: បើក/បិទ កាមេរ៉ា
@@ -813,7 +806,6 @@ window.FaceScannerModal = ({
           stream = await navigator.mediaDevices.getUserMedia({ video: {} });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            // (មិនបាច់ setDetectionStatus(t.processing) ទៀតទេ)
           }
         } catch (err) {
           console.error("Error accessing camera:", err);
@@ -836,7 +828,8 @@ window.FaceScannerModal = ({
       setIsVideoPlaying(false);
       setDetectionStatus(t.loadingModels); 
       clearFeedback(); 
-      setIsBusy(false); // !! ថ្មី !!: Reset Busy ពេលបិទ Modal
+      setIsBusy(false); 
+      // setIsMirrored(true); // Reset ទៅ Default ពេលបិទ (Optional)
     };
 
     if (isOpen) {
@@ -849,9 +842,8 @@ window.FaceScannerModal = ({
 
   // Effect ទី 2: ចាប់ផ្ដើម Interval ពេល Video Play និង faceMatcher រួចរាល់
   useEffect(() => {
-    // !! ជួសជុល !!: ពិនិត្យ !isBusy មុនពេលចាប់ផ្ដើម
     if (isOpen && isVideoPlaying && faceMatcher && !isBusy) {
-      setDetectionStatus(t.processing); // ចាប់ផ្ដើមស្កេន
+      setDetectionStatus(t.processing); 
       startScanInterval(); 
     } else if (isOpen && isVideoPlaying && !faceMatcher) {
       setDetectionStatus(t.loadingModels);
@@ -865,17 +857,13 @@ window.FaceScannerModal = ({
   // Effect ទី 3: គ្រប់គ្រង Feedback
   useEffect(() => {
     if (feedback.message) {
-      // 1. បញ្ឈប់ការស្កេន (isBusy = true)
       setIsBusy(true);
       if (intervalRef.current) clearInterval(intervalRef.current);
       
-      // 2. រង់ចាំ 3 វិនាទី
       const timer = setTimeout(() => {
-        // 3. សម្អាត Feedback
         clearFeedback();
-        // 4. ដោះ Busy (អនុញ្ញាតឲ្យ Effect 2 រត់វិញ)
         setIsBusy(false);
-      }, 3000); // បង្ហាញ Feedback រយៈពេល 3 វិនាទី
+      }, 3000); 
 
       return () => clearTimeout(timer);
     }
@@ -886,17 +874,35 @@ window.FaceScannerModal = ({
     setIsVideoPlaying(true); 
   };
 
+  // !! ថ្មី !!: Function សម្រាប់ប្តូរ Mirror
+  const handleToggleMirror = () => {
+    setIsMirrored(prev => !prev);
+  };
+
   if (!isOpen) return null;
 
   const feedbackColor = feedback.type === 'success' ? 'text-green-600 animate-pulse' : 'text-red-600';
-  // !! កែសម្រួល !!: ផ្ដល់អាទិភាពឲ្យ Feedback មុន
   const currentStatus = feedback.message ? feedback.message : detectionStatus;
+  
+  // !! ថ្មី !!: កំណត់ Style សម្រាប់ Mirror
+  const videoStyle = {
+    transform: isMirrored ? 'scaleX(-1)' : 'scaleX(1)'
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={onClose}>
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg p-4 relative" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-600 bg-gray-200 p-2 rounded-full z-20 hover:bg-gray-300">
           <window.appSetup.IconClose />
+        </button>
+        
+        {/* !! ថ្មី !!: ប៊ូតុងបិទ/បើក Mirror */}
+        <button
+          onClick={handleToggleMirror}
+          className="absolute top-4 left-4 text-gray-800 bg-gray-200 p-2 rounded-full z-20"
+          title={t.toggleMirror}
+        >
+          {isMirrored ? <IconToggleRight className="w-6 h-6" /> : <IconToggleLeft className="w-6 h-6" />}
         </button>
         
         <div className="relative flex justify-center bg-black rounded-xl overflow-hidden mt-10 mb-4">
@@ -907,9 +913,13 @@ window.FaceScannerModal = ({
                 playsInline 
                 onPlay={handleVideoPlay}
                 className="w-full h-auto object-cover"
-                style={{ transform: 'scaleX(-1)' }} 
+                style={videoStyle} // !! ថ្មី !!: ប្រើ Style
             />
-            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" style={{ transform: 'scaleX(-1)' }} />
+            <canvas 
+                ref={canvasRef} 
+                className="absolute top-0 left-0 w-full h-full" 
+                style={videoStyle} // !! ថ្មី !!: ប្រើ Style
+            />
         </div>
 
         <div className="text-center h-12">
