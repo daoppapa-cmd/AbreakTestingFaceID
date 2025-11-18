@@ -215,7 +215,8 @@ const IconType = ({ className = "w-6 h-6" }) => (
 
 const IconCameraRotate = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 10h4l-2-2m-2 2l2-2m-2 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4m0 0l-2 2m2-2l-2 2m2-2H8m8 6h2a2 2 0 002-2v-4a2 2 0 00-2-2h-4a2 2 0 00-2 2v4a2 2 0 002 2h2m-4-4a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-Services
+);
+
 const IconFaceId = ({ className = "w-6 h-6" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c.88 0 1.6.67 1.71 1.53L13.72 13l-.01.06a1.72 1.72 0 01-3.42 0L10.28 13l.01-.06c.11-.86.83-1.53 1.71-1.53zM7 3a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zm10 0a1 1 0 011 1v2a1 1 0 102 0V4a3 3 0 00-3-3 1 1 0 010-2zM7 21a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2zm10 0a1 1 0 011-1v-2a1 1 0 102 0v2a3 3 0 00-3 3 1 1 0 010 2z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10a3 3 0 11-6 0 3 3 0 016 0zm12 0a3 3 0 11-6 0 3 3 0 016 0zm-6 4a5 5 0 00-5 5v1h10v-1a5 5 0 00-5-5z"></path></svg>
 );
