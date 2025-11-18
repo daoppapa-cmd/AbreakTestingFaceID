@@ -244,8 +244,9 @@ window.CompletedStudentListCard = ({ student, record, onClick, isSelected, onSel
         </p>
         
         {record.passNumber && (
+          // !! កែសម្រួល !!: បន្ថែម ID Number នៅទីនេះ
           <p className="text-sm font-semibold text-cyan-300">
-            ({t.statusPass}: {record.passNumber}{branchDisplay})
+            ({t.statusPass}: {record.passNumber}{branchDisplay} ID {student.idNumber || 'N/A'})
           </p>
         )}
         
@@ -324,8 +325,9 @@ window.OnBreakStudentListCard = ({
             </span>
           )}
         </p>
+        {/* !! កែសម្រួល !!: បន្ថែម ID Number នៅទីនេះ */}
         <p className="text-sm text-blue-200">
-          ({t.statusPass}: {record.passNumber || '???'}{branchDisplay})
+          ({t.statusPass}: {record.passNumber || '???'}{branchDisplay} ID {student.idNumber || 'N/A'})
         </p>
       </div>
       
@@ -737,12 +739,12 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
 // !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror + Distance + CheckIn/Out Toggle) !!
 window.FaceScannerModal = ({ 
     isOpen, onClose, 
-    onMatchFound, // !! ថ្មី !!: នេះគឺជា onFaceMatchFound_Main
+    onMatchFound, 
     faceMatcher, t,
     feedback,
     clearFeedback,
-    faceScanMode, // !! ថ្មី !!: ទទួល Mode បច្ចុប្បន្ន
-    setFaceScanMode // !! ថ្មី !!: ទទួល Function សម្រាប់ប្តូរ Mode
+    faceScanMode, 
+    setFaceScanMode 
 }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
@@ -861,9 +863,6 @@ window.FaceScannerModal = ({
       const detectionOptions = isDistanceMode 
         ? new faceapi.SsdMobilenetv1Options() 
         : new faceapi.TinyFaceDetectorOptions(); 
-      
-      // !! កែសម្រួល !!: មិនបាច់កំណត់ Status នៅទីនេះ ព្រោះ Title នឹងបង្ហាញ
-      // setDetectionStatus(isDistanceMode ? t.faceScanDistance : t.faceScanNormal);
       
       startScanInterval(detectionOptions, t); 
       
