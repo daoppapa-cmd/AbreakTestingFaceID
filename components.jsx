@@ -13,14 +13,14 @@ const {
   IconCameraRotate, 
   IconToggleLeft, IconToggleRight,
   IconFaceId,
-  IconZoomIn // !! ថ្មី !!: ទាញ IconZoomIn
+  IconZoomIn
 } = window.appSetup;
 
 const { useState, useEffect, useRef } = React;
 
 window.StudentCard = ({ 
   student, pageKey, passesInUse, attendance, now, 
-  onCheckOutClick,
+  onCheckOutClick, // !! កែសម្រួល !!: ប្រើ Prop ថ្មី
   handleCheckIn, 
   handleOpenQrScanner, 
   onDeleteClick, 
@@ -734,11 +734,15 @@ window.QrScannerModal = ({ isOpen, onClose, onScanSuccess, lastScannedInfo, isSc
   );
 };
 
-// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror + Distance Mode) !!
+// !! START: កែសម្រួល FaceScannerModal (Kiosk Mode + Mirror + Distance + CheckIn/Out Toggle) !!
 window.FaceScannerModal = ({ 
-    isOpen, onClose, onMatchFound, faceMatcher, t,
+    isOpen, onClose, 
+    onMatchFound, // !! ថ្មី !!: នេះគឺជា onFaceMatchFound_Main
+    faceMatcher, t,
     feedback,
-    clearFeedback 
+    clearFeedback,
+    faceScanMode, // !! ថ្មី !!: ទទួល Mode បច្ចុប្បន្ន
+    setFaceScanMode // !! ថ្មី !!: ទទួល Function សម្រាប់ប្តូរ Mode
 }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
@@ -748,7 +752,7 @@ window.FaceScannerModal = ({
   const [isBusy, setIsBusy] = useState(false); 
   
   const [isMirrored, setIsMirrored] = useState(true); 
-  const [isDistanceMode, setIsDistanceMode] = useState(false); // Default ស្កេនជិត
+  const [isDistanceMode, setIsDistanceMode] = useState(false); 
 
   // Function សម្រាប់ចាប់ផ្ដើមស្កេន
   const startScanInterval = (options, currentT) => { 
@@ -786,7 +790,7 @@ window.FaceScannerModal = ({
         if (match.label !== 'unknown' && !isBusy) {
            setIsBusy(true); 
            if (intervalRef.current) clearInterval(intervalRef.current);
-           onMatchFound(match.label); 
+           onMatchFound(match.label); // ហៅ Main Handler
         } else if (match.label === 'unknown' && !feedback.message) {
             setDetectionStatus(currentT.faceNotMatch); 
         }
@@ -806,7 +810,7 @@ window.FaceScannerModal = ({
           }
       }
 
-    }, 300); // ពិនិត្យរៀងរាល់ 300ms
+    }, 300); 
   };
 
   // Effect ទី 1: បើក/បិទ កាមេរ៉ា
@@ -841,7 +845,6 @@ window.FaceScannerModal = ({
       setDetectionStatus(t.loadingModels); 
       clearFeedback(); 
       setIsBusy(false); 
-      // setIsDistanceMode(false); // Reset Zoom ពេលបិទ (Optional)
     };
 
     if (isOpen) {
@@ -852,15 +855,15 @@ window.FaceScannerModal = ({
     return () => { stopVideo(); };
   }, [isOpen, t, clearFeedback]);
 
-  // Effect ទី 2: ចាប់ផ្ដើម Interval ពេល Video Play, faceMatcher, isBusy, isDistanceMode, t
+  // Effect ទី 2: ចាប់ផ្ដើម Interval
   useEffect(() => {
     if (isOpen && isVideoPlaying && faceMatcher && !isBusy) {
-      // កំណត់ Options ផ្អែកលើ State
       const detectionOptions = isDistanceMode 
-        ? new faceapi.SsdMobilenetv1Options() // ស្កេនចម្ងាយ (យឺត)
-        : new faceapi.TinyFaceDetectorOptions(); // ស្កេនជិត (លឿន)
+        ? new faceapi.SsdMobilenetv1Options() 
+        : new faceapi.TinyFaceDetectorOptions(); 
       
-      setDetectionStatus(isDistanceMode ? t.faceScanDistance : t.faceScanNormal);
+      // !! កែសម្រួល !!: មិនបាច់កំណត់ Status នៅទីនេះ ព្រោះ Title នឹងបង្ហាញ
+      // setDetectionStatus(isDistanceMode ? t.faceScanDistance : t.faceScanNormal);
       
       startScanInterval(detectionOptions, t); 
       
@@ -871,7 +874,7 @@ window.FaceScannerModal = ({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isOpen, isVideoPlaying, faceMatcher, isBusy, isDistanceMode, t]); // បន្ថែម isDistanceMode, t
+  }, [isOpen, isVideoPlaying, faceMatcher, isBusy, isDistanceMode, t]);
 
   // Effect ទី 3: គ្រប់គ្រង Feedback
   useEffect(() => {
@@ -882,7 +885,7 @@ window.FaceScannerModal = ({
       const timer = setTimeout(() => {
         clearFeedback();
         setIsBusy(false);
-      }, 3000); // រង់ចាំ 3 វិនាទី
+      }, 3000); 
 
       return () => clearTimeout(timer);
     }
@@ -899,6 +902,12 @@ window.FaceScannerModal = ({
   
   const handleToggleDistanceMode = () => {
     setIsDistanceMode(prev => !prev);
+  };
+  
+  // !! ថ្មី !!: Function សម្រាប់ប្តូរ Mode (CheckIn/CheckOut)
+  const handleToggleScanMode = () => {
+    setFaceScanMode(prev => (prev === 'checkout' ? 'checkin' : 'checkout'));
+    clearFeedback(); // សម្អាត Feedback ចាស់
   };
 
   if (!isOpen) return null;
@@ -925,13 +934,24 @@ window.FaceScannerModal = ({
           {isMirrored ? <IconToggleRight className="w-6 h-6" /> : <IconToggleLeft className="w-6 h-6" />}
         </button>
         
-        {/* !! ថ្មី !!: ប៊ូតុង Zoom (Distance Mode) */}
         <button
           onClick={handleToggleDistanceMode}
           className={`absolute top-16 left-4 text-gray-800 p-2 rounded-full z-20 ${isDistanceMode ? 'bg-blue-400 text-white' : 'bg-gray-200'}`}
           title={isDistanceMode ? t.faceScanDistance : t.faceScanNormal}
         >
           <window.appSetup.IconZoomIn className="w-6 h-6" />
+        </button>
+        
+        {/* !! ថ្មី !!: ប៊ូតុងប្តូរ Mode (CheckIn/CheckOut) */}
+        <button
+          onClick={handleToggleScanMode}
+          className={`absolute top-28 left-4 p-2 rounded-full z-20 ${faceScanMode === 'checkin' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
+          title={faceScanMode === 'checkin' ? t.faceScanModeCheckIn : t.faceScanModeCheckOut}
+        >
+          {faceScanMode === 'checkin' 
+             ? <window.appSetup.IconCheckIn className="w-6 h-6" />
+             : <window.appSetup.IconCheckOut className="w-6 h-6" />
+          }
         </button>
         
         <div className="relative flex justify-center bg-black rounded-xl overflow-hidden mt-10 mb-4">
@@ -951,8 +971,11 @@ window.FaceScannerModal = ({
             />
         </div>
 
-        <div className="text-center h-12">
-            <h3 className="text-xl font-bold mb-2">{t.faceScan}</h3>
+        <div className="text-center h-16">
+            <h3 className="text-xl font-bold mb-2">
+                {/* !! ថ្មី !!: បង្ហាញ Title ទៅតាម Mode */}
+                {faceScanMode === 'checkin' ? t.faceScanModeCheckIn : t.faceScanModeCheckOut}
+            </h3>
             <p className={`text-lg font-semibold ${feedback.message ? feedbackColor : 'text-gray-500'}`}>
                 {currentStatus}
             </p>
