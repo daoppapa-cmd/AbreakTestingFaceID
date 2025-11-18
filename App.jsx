@@ -134,7 +134,7 @@ function App() {
     loadModels();
   }, []);
 
-  // !! កែសម្រួល !!: 2. បង្កើត Face Matcher (Fix Cache Bug)
+  // 2. បង្កើត Face Matcher (ប្រើ LocalStorage Cache)
   useEffect(() => {
     if (!isModelsLoaded || students.length === 0) return;
     
@@ -151,7 +151,7 @@ function App() {
           console.log("Loading face descriptors from cache...");
           const descriptors = JSON.parse(cachedData);
           
-          // !! កែសម្រួល !!: អានទម្រង់ Array ត្រឡប់មកវិញ
+          // អានទម្រង់ Array ត្រឡប់មកវិញ
           const labeledDescriptors = descriptors.map(d => 
             new faceapi.LabeledFaceDescriptors(
               d.label, 
@@ -193,7 +193,7 @@ function App() {
             const detection = await faceapi.detectSingleFace(img, detectionOptions).withFaceLandmarks().withFaceDescriptor();
             
             if (detection) {
-                // !! កែសម្រួល !!: បំប្លែង Float32Array ទៅជា Array ធម្មតា មុនពេលរក្សាទុក
+                // បំប្លែង Float32Array ទៅជា Array ធម្មតា មុនពេលរក្សាទុក
                 descriptorsToCache.push({
                    label: student.id,
                    descriptors: Array.from(detection.descriptor) // [0.1, -0.2, ...]
